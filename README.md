@@ -94,6 +94,32 @@ replacing the roster-composition estimate as more of the season actually plays o
 draw itself is still a symmetric Normal rather than fantasy scoring's real right-skewed
 shape — see Known simplifications.
 
+### EDA: checking the model's own assumptions against real data
+
+`src/eda_assumptions.py` tests the assumptions above against 3 seasons of real historical
+results, not just asserts them. Findings from the run that shaped the current constants:
+
+- **Teammate independence** (the `Var(sum) = sum(Var)` assumption): mostly holds. WR1-WR2
+  and QB-RB1 pairs (same real NFL team) showed no significant correlation, and committee
+  RB1-RB2 pairs were slightly *negatively* correlated (touch-share tradeoffs). But
+  **QB-WR1 (r=0.174, p=.0001) and QB-TE1 (r=0.120, p=.003) same-team correlations are real**
+  — a genuine same-game "stack" effect. `lineup_std_from_picks` now adds the corresponding
+  covariance term whenever a lineup's real QB and real WR1/TE1 share an actual NFL team,
+  rather than treating them as independent.
+- **Normality of team-level scores**: strongly holds. Replaying this league's 14 current
+  rosters against 3 real seasons (51 weeks each), every single team passed a Shapiro-Wilk
+  normality test, with low skew and slightly negative excess kurtosis (if anything,
+  thinner-tailed than Normal). The individual-player skew that's real at the player level
+  washes out once ~9 players are summed into a team score (Central Limit Theorem) — good
+  support for the Normal-draw sampling model.
+- **`FULL_TRUST_GAMES`**: split-half reliability of a player's own pooled std was already
+  0.850 at just 10-19 games, barely improving to 0.886 at 30+. The old value of 24 was more
+  conservative than the data supports; lowered to 15.
+- **`DEFAULT_POOL_SIZE`**: at the position's rank cutoff, average points should still look
+  like a real "startable" player, not a replacement-level one. RB's old cutoff of 60 landed
+  at 4.3 pts/week (genuinely replacement level) vs. rank 40's 8.1 — lowered to 40. QB/WR/TE/
+  K/DEF cutoffs already landed in defensible territory and were left as-is.
+
 ## Usage
 
 ```bash
@@ -118,7 +144,11 @@ Output: a results table printed to console, and a CSV at `output/season_sim_<lea
   league's own scoring rules.
 - `src/historical.py` — empirical weekly-volatility model from 3 past seasons' real
   results (per-player, rookie-class, and position-average tiers), scored with the same
-  scoring function as projections.
+  scoring function as projections. Also adds the measured QB+pass-catcher same-team
+  stack covariance (see EDA below) on top of the naive independent-slots sum.
+- `src/eda_assumptions.py` — checks the model's own assumptions against real historical
+  data (teammate independence, Normality of team scores, per-player std reliability,
+  position pool cliffs). Run it directly any time to re-validate after a data refresh.
 - `src/strength.py` — optimal lineup construction per week (returns WHO was picked, not
   just the total, so historical.py can price that specific lineup's volatility), and the
   actual-vs-projected team calibration (ratio + residual std).
@@ -137,10 +167,12 @@ Output: a results table printed to console, and a CSV at `output/season_sim_<lea
 - The streaming ceiling's volatility (used for a bye-week backstop slot, since we don't
   know who it'd actually be) uses the general position average, not a "typical streamer"
   estimate specifically — plausible but unverified as its own tier.
-- Weekly scores are sampled independently (no positional correlation across a team's own
-  players, e.g. same-game stacks; no explicit game-script/weather modeling beyond whatever
-  Rotowire already bakes into its stat-line projections), and drawn from a symmetric Normal
-  rather than fantasy scoring's real right-skewed shape.
+- Only the QB-WR1/QB-TE1 same-team correlation is modeled (measured significant by the
+  EDA); other pairs (WR-WR, QB-RB, RB-RB) showed no significant correlation and are still
+  treated as independent, which the data supports. No explicit game-script/weather modeling
+  beyond whatever Rotowire already bakes into its stat-line projections, and the draw is
+  still a symmetric Normal rather than fantasy scoring's real right-skewed shape (though the
+  EDA found team-level scores are close enough to Normal that this isn't a big concern).
 - In-season roster moves (waivers/trades) are only reflected once re-fetched — a run always
   uses each team's *current* roster, including retroactively for past-week calibration.
 - Streaming ceiling is shared across all teams (no waiver-contention modeling) — see above.

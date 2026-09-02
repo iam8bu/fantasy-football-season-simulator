@@ -26,12 +26,19 @@ import sleeper_api as api
 
 HISTORY_SEASONS_BACK = 3      # pool this many past completed seasons per player
 MIN_GAMES_PER_SEASON = 3      # ignore a player-season with fewer real games than this
-FULL_TRUST_GAMES = 24         # a player's own pooled std fully replaces the position average by this many games
+
+# Split-half reliability of a player's own pooled std, measured via eda_assumptions.py:
+# 0.850 at 10-19 games, 0.850 at 20-29, 0.886 at 30+ -- reliability is already high well
+# before 24 games, so full trust at 15 is evidence-based, not just a rounder number.
+FULL_TRUST_GAMES = 15
 
 # "Startable" pool sizes for a 14-team league (starters + streaming candidates) --
 # big enough to be a stable sample, small enough to exclude scrubs whose one-game
-# noise isn't representative of a real starter's volatility.
-DEFAULT_POOL_SIZE = {"QB": 24, "RB": 60, "WR": 72, "TE": 24, "K": 24, "DEF": 24}
+# noise isn't representative of a real starter's volatility. Set from the rank-vs-
+# average-points cliff measured in eda_assumptions.py: e.g. RB was previously 60,
+# but rank 60 averages just 4.3 pts/week (replacement level) vs rank 40's 8.1 --
+# 60 was diluting "typical starter" volatility with committee/deep-bench players.
+DEFAULT_POOL_SIZE = {"QB": 24, "RB": 40, "WR": 72, "TE": 24, "K": 24, "DEF": 24}
 
 # Same idea, scaled to how many rookies are actually fantasy-relevant in a given
 # season/position -- without this, a rookie pool with no floor includes every
@@ -42,6 +49,16 @@ ROOKIE_POOL_SIZE = {"QB": 8, "RB": 20, "WR": 24, "TE": 10}
 # Last-resort fallback if the historical pull fails entirely (e.g. API outage) --
 # these are simply this session's measured 2025-only values, not re-derived live.
 HARDCODED_FALLBACK_STD = {"QB": 8.6, "RB": 7.5, "WR": 7.0, "TE": 6.7, "K": 3.6, "DEF": 5.7}
+
+# Same-real-NFL-team QB + pass-catcher correlation, measured via eda_assumptions.py
+# (Pearson r on weekly points, same weeks, 3 seasons, ~81-83 team-seasons each,
+# p=.0001 and p=.003 respectively -- real and significant, unlike WR-WR or QB-RB
+# pairs which showed no significant correlation). Used to add the covariance term
+# Var(sum) actually requires (Var(sum) = sum(Var) + 2*sum(Cov)) whenever a team's
+# optimal lineup includes their real QB alongside their real WR1/TE1 from the same
+# NFL team -- a same-game "stack" effect the naive independence assumption misses.
+QB_WR_STACK_CORR = 0.174
+QB_TE_STACK_CORR = 0.120
 
 ROOKIE_ELIGIBLE_POSITIONS = ("QB", "RB", "WR", "TE")  # K/DEF have no meaningful "rookie" volatility distinction
 
@@ -187,14 +204,35 @@ def lineup_std_from_picks(picks: list, model: dict, players_db: dict, current_se
     """picks: [(position, player_id_or_None), ...] from strength.best_lineup_points
     -- player_id is None for a hypothetical streamed replacement (bye backstop),
     which uses the position average since we don't know exactly who it'd be.
+
+    Var(sum) = sum(Var) + 2*sum(Cov): if the lineup's QB and one of its WR/TE picks
+    are real players on the same actual NFL team, adds the measured stack covariance
+    (QB_WR_STACK_CORR / QB_TE_STACK_CORR) rather than treating them as independent --
+    see eda_assumptions.py for why that assumption doesn't hold for this specific pair.
     """
-    total_var = 0.0
+    stds_by_pick = []
     for pos, pid in picks:
         std = model["position_avg_std"].get(pos, 0.0) if pid is None else effective_std(
             pid, pos, model, players_db, current_season
         )
-        total_var += std ** 2
-    return math.sqrt(total_var)
+        stds_by_pick.append((pos, pid, std))
+
+    total_var = sum(std ** 2 for _, _, std in stds_by_pick)
+
+    qb_picks = [(pid, std) for pos, pid, std in stds_by_pick if pos == "QB" and pid]
+    if qb_picks:
+        qb_pid, qb_std = qb_picks[0]
+        qb_team = (players_db.get(qb_pid) or {}).get("team")
+        if qb_team:
+            for pos, pid, std in stds_by_pick:
+                if pos not in ("WR", "TE") or not pid:
+                    continue
+                if (players_db.get(pid) or {}).get("team") != qb_team:
+                    continue
+                corr = QB_WR_STACK_CORR if pos == "WR" else QB_TE_STACK_CORR
+                total_var += 2 * corr * qb_std * std
+
+    return math.sqrt(max(total_var, 0.0))
 
 
 def composite_lineup_std(slot_req: dict, position_avg_std: dict) -> float:
