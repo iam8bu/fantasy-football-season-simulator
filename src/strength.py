@@ -17,17 +17,19 @@ Two stages:
    flat preseason average. Weekly volatility (std dev) is likewise estimated
    from the residuals between actual scores and this week-specific baseline.
 
-3. Streaming (DEF/K only): future-week projections assume a team can replace its
-   rostered DEF/K with the best true free agent at that position leaguewide, if
-   that's better than what they have rostered -- approximating a manager who
-   streams the position rather than assuming a static roster all season. This is
-   a shared ceiling available to every team (it does NOT model 14 teams competing
-   for the same one streamer), and it is NOT applied retroactively, so the
-   actual-vs-projected calibration in stage 2 stays honest about each team's real
-   roster.
+3. Bye-week streaming: if a required starting slot has NO usable rostered player
+   that week (every rostered player at that position is on bye/unprojected --
+   the common case being a team with zero bench depth at QB or TE), that slot is
+   filled with the best true free agent at that position leaguewide instead of a
+   hard zero. This only fires when the slot would otherwise be empty -- a team's
+   actual rostered starter is always used over the streaming option whenever
+   they're playing, even if a leaguewide free agent projects higher that week.
+   It's a shared ceiling available to every team (does NOT model 14 teams
+   competing for the same one streamer), and it is NOT applied retroactively, so
+   the actual-vs-projected calibration in stage 2 stays honest about each team's
+   real roster.
 """
 import math
-from collections import ChainMap
 
 import projections
 
@@ -37,11 +39,19 @@ RATIO_FULL_WEIGHT_WEEK = 6     # by this many played weeks, trust the team's own
 RATIO_CLAMP = (0.75, 1.30)     # keep calibration from overreacting to small samples / one wild week
 
 
-def best_lineup_points(player_ids: list, points_by_pid: dict, position_by_pid: dict, slot_requirements: dict) -> float:
+def best_lineup_points(
+    player_ids: list, points_by_pid: dict, position_by_pid: dict, slot_requirements: dict,
+    stream_ceilings: dict = None,
+) -> float:
     """Optimal starting lineup total for one week, given roster slot counts.
 
     slot_requirements example: {'QB': 1, 'RB': 2, 'WR': 2, 'TE': 1, 'FLEX': 1, 'K': 1, 'DEF': 1}
     FLEX eligible positions: RB/WR/TE.
+
+    stream_ceilings, if given: {'QB': best_free_agent_points, ...}. A required slot is
+    only ever filled by this when NO rostered player at that position has a nonzero
+    (i.e. non-bye/unprojected) value that week -- a real rostered starter who's playing
+    always wins over a hypothetical streamer, no matter the streamer's projection.
     """
     by_pos = {pos: [] for pos in SLOT_POSITIONS}
     for pid in player_ids:
@@ -57,8 +67,10 @@ def best_lineup_points(player_ids: list, points_by_pid: dict, position_by_pid: d
     for pos in SLOT_POSITIONS:
         n = slot_requirements.get(pos, 0)
         take = by_pos[pos][:n]
+        if stream_ceilings and pos in stream_ceilings:
+            take = [v if v > 0 else stream_ceilings[pos] for v in take]
         total += sum(take)
-        used[pos] = len(take)
+        used[pos] = len(by_pos[pos][:n])
 
     flex_n = slot_requirements.get("FLEX", 0)
     remaining = []
@@ -84,7 +96,7 @@ def project_all_weeks(season: str, weeks: list, scoring_settings: dict) -> dict:
     return {week: projections.week_player_points(season, week, scoring_settings) for week in weeks}
 
 
-STREAMABLE_POSITIONS = ("DEF", "K")
+STREAMABLE_POSITIONS = SLOT_POSITIONS  # bye-week backstop applies to any position
 
 
 def rostered_player_ids(teams: dict) -> set:
@@ -112,25 +124,7 @@ def team_week_projection(
     team_players: list, week_points: dict, position_lookup: dict, slot_req: dict,
     stream_ceilings: dict = None,
 ) -> float:
-    """stream_ceilings, if given: {'DEF': best_free_agent_points, 'K': ...} -- lets the
-    lineup optimizer swap in a hypothetical streamed replacement if it beats what's
-    actually rostered. Uses ChainMap so we never copy the full (huge) points/position
-    lookups just to add a couple of synthetic entries.
-    """
-    if not stream_ceilings:
-        return best_lineup_points(team_players, week_points, position_lookup, slot_req)
-
-    extra_points, extra_positions, synthetic_ids = {}, {}, []
-    for pos, ceiling in stream_ceilings.items():
-        sid = f"__stream_{pos}__"
-        extra_points[sid] = ceiling
-        extra_positions[sid] = pos
-        synthetic_ids.append(sid)
-
-    player_ids = list(team_players) + synthetic_ids
-    points_by_pid = ChainMap(extra_points, week_points)
-    position_by_pid = ChainMap(extra_positions, position_lookup)
-    return best_lineup_points(player_ids, points_by_pid, position_by_pid, slot_req)
+    return best_lineup_points(team_players, week_points, position_lookup, slot_req, stream_ceilings)
 
 
 def calibrate_team(team, retro_projection_by_week: dict):
