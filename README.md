@@ -181,7 +181,26 @@ python3 main.py --league-id <other_id>   # point at a different Sleeper league
 Re-run any time (e.g. weekly) — it always pulls fresh data, so odds update as real
 results come in and the actual/projection blend shifts.
 
-Output: a results table printed to console, and a CSV at `output/season_sim_<league_id>.csv`.
+Output: a results table printed to console, a CSV at `output/season_sim_<league_id>.csv`,
+and a JSON at `output/season_sim_<league_id>.json` (same data, plus run context like the
+current week and sim count) that the dashboard below reads.
+
+## Dashboard
+
+```bash
+cd src
+python3 main.py && python3 build_dashboard.py
+```
+
+Reads `output/season_sim_<league_id>.json` and writes a static `index.html` at the repo
+root — a standings page with playoff/bye/championship odds, a favorite-to-win-it-all
+callout, and the tightest-race storyline, styled to match this author's other model
+dashboards (dark terminal surface, heatmap-shaded odds table, Inter — see the
+[World Cup watchability dashboard](https://iam8bu.github.io/world-cup-watchability-dashboard-2026/)
+for the sibling project this reuses the design language from). No auto-refresh — same
+manual workflow as that project: re-run both commands whenever you want updated numbers,
+open `index.html` locally, or push it somewhere that serves static files (e.g. GitHub
+Pages) if you want a shareable link.
 
 ### Showing real names instead of Sleeper team names (optional, local-only)
 

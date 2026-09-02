@@ -5,6 +5,8 @@ Usage:
 """
 import argparse
 import csv
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import sleeper_api as api
@@ -165,6 +167,22 @@ def main():
         for row in rows:
             writer.writerow({k: row[k] for k in keys})
     print(f"\nSaved: {out_path}")
+
+    # Same data as the CSV, plus a bit of run context -- consumed by any dashboard
+    # built on top of this (e.g. an Artifact), so it never has to hand-copy numbers.
+    json_path = OUT_DIR / f"season_sim_{args.league_id}.json"
+    with open(json_path, "w") as f:
+        json.dump({
+            "league_name": league["name"],
+            "season": season,
+            "current_week": current_week,
+            "regular_season_weeks": regular_season_weeks,
+            "playoff_teams": playoff_teams,
+            "n_sims": args.sims,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "teams": rows,
+        }, f, indent=2)
+    print(f"Saved: {json_path}")
 
 
 if __name__ == "__main__":
