@@ -25,13 +25,22 @@ def score_stats(stats: dict, scoring_settings: dict) -> float:
 
 
 def week_player_points(season: str, week: int, scoring_settings: dict) -> dict:
-    """player_id -> projected fantasy points for this week, per the league's own rules."""
+    """player_id -> projected fantasy points for this week, per the league's own rules.
+
+    Excludes a hollow entry with no keys overlapping the scoring rules (metadata/rank
+    sentinels only, no actual projected production) rather than scoring it as a false
+    0 -- confirmed this pattern is real for injured/inactive players in the actuals
+    feed (see historical.week_player_actuals), applied here too since projections
+    share the same underlying data pipeline.
+    """
     raw = api.get_projections(season, week)
     points = {}
     for entry in raw:
         pid = entry.get("player_id")
         stats = entry.get("stats")
         if not pid or not stats:
+            continue
+        if not (stats.keys() & scoring_settings.keys()):
             continue
         points[pid] = score_stats(stats, scoring_settings)
     return points

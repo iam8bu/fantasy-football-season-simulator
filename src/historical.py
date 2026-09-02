@@ -66,6 +66,16 @@ ROOKIE_ELIGIBLE_POSITIONS = ("QB", "RB", "WR", "TE")  # K/DEF have no meaningful
 def week_player_actuals(season: str, week: int, scoring_settings: dict) -> dict:
     """player_id -> actual fantasy points for this week. A player with no game
     that week (bye, inactive, not in the feed) is simply absent -- not zero.
+
+    Also excludes a real but hollow case: unlike a bye week (which omits the
+    player from the feed entirely), an injured/inactive player who's still on
+    an active roster (e.g. on IR) can get a stats entry with NO actual
+    counting stats -- just metadata/rank sentinels -- which would otherwise
+    score to a false 0.0 and get counted as a genuinely bad game. Detected by
+    requiring at least one key that actually overlaps the scoring rules (a
+    real game, even a quiet one, always has some: pass_att, rush_att, rec_tgt,
+    etc.); confirmed via a real case (Joe Burrow, 2025 IR stint) where the
+    injured-week entry had zero overlapping keys vs. his real played weeks.
     """
     raw = api.get_stats(season, week)
     points = {}
@@ -74,6 +84,8 @@ def week_player_actuals(season: str, week: int, scoring_settings: dict) -> dict:
         stats = entry.get("stats")
         if not pid or not stats:
             continue
+        if not (stats.keys() & scoring_settings.keys()):
+            continue  # no real counting stats -- injured/inactive, not a real 0
         points[pid] = projections.score_stats(stats, scoring_settings)
     return points
 
