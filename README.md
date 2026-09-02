@@ -183,6 +183,16 @@ results come in and the actual/projection blend shifts.
 
 Output: a results table printed to console, and a CSV at `output/season_sim_<league_id>.csv`.
 
+### Showing real names instead of Sleeper team names (optional, local-only)
+
+`data/real_names.json` maps each `owner_id` to a real name, if you'd rather see that than
+Sleeper display names/team names in the output. It's entirely optional (falls back to the
+normal Sleeper name for anyone not listed) and lives under `data/`, which is gitignored --
+it will never be committed or reach GitHub. A template with every `owner_id` in the league
+is generated the first time you inspect `teams` (or hand-write one: `{"<owner_id>": "Real
+Name", ...}`). Edit it locally with real names; nothing about who's in the league goes into
+source control.
+
 ## Project layout
 
 - `src/sleeper_api.py` — thin client for Sleeper's public API, with local JSON caching

@@ -1,7 +1,35 @@
 """Assembles a clean view of the league: teams, rosters, schedule, and results so far."""
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import sleeper_api as api
+
+REAL_NAMES_PATH = Path(__file__).resolve().parent.parent / "data" / "real_names.json"
+
+
+def load_real_names() -> dict:
+    """owner_id -> real name, if data/real_names.json exists (gitignored -- never
+    committed). Lets output show real names locally without any of that ever
+    reaching source control. Missing file / missing entries just fall back to
+    each team's normal Sleeper display name, so this is fully optional.
+    """
+    if not REAL_NAMES_PATH.exists():
+        return {}
+    with open(REAL_NAMES_PATH) as f:
+        return json.load(f)
+
+
+def _write_real_names_template(display_name_by_owner: dict):
+    """First run only: seeds data/real_names.json with owner_id -> current Sleeper
+    display name, so there's something to hand-edit into real names locally. Never
+    overwrites an existing file (i.e. never clobbers names you've already filled in).
+    """
+    if REAL_NAMES_PATH.exists():
+        return
+    REAL_NAMES_PATH.parent.mkdir(exist_ok=True)
+    with open(REAL_NAMES_PATH, "w") as f:
+        json.dump(display_name_by_owner, f, indent=2, ensure_ascii=False)
 
 
 @dataclass
@@ -30,16 +58,20 @@ def load_league(league_id: str, fresh=True):
     rosters = api.get_rosters(league_id, fresh=fresh)
     users = api.get_users(league_id, fresh=fresh)
     user_by_id = {u["user_id"]: u for u in users}
+    real_names = load_real_names()
 
     teams = {}
+    display_names = {}
     for r in rosters:
         owner_id = r.get("owner_id")
         user = user_by_id.get(owner_id, {})
         settings = r.get("settings") or {}
+        display_name = _team_display_name(user) if user else f"Roster {r['roster_id']}"
+        display_names[owner_id] = display_name
         teams[r["roster_id"]] = Team(
             roster_id=r["roster_id"],
             owner_id=owner_id,
-            team_name=_team_display_name(user) if user else f"Roster {r['roster_id']}",
+            team_name=real_names.get(owner_id, display_name),
             players=r.get("players") or [],
             starters=r.get("starters") or [],
             wins=settings.get("wins", 0),
@@ -47,6 +79,7 @@ def load_league(league_id: str, fresh=True):
             ties=settings.get("ties", 0),
             fpts=settings.get("fpts", 0) + settings.get("fpts_decimal", 0) / 100,
         )
+    _write_real_names_template(display_names)
     return league, teams
 
 
