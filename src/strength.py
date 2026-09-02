@@ -44,39 +44,23 @@ SLOT_POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
 # How much should a team's early-season actual-vs-projected ratio move its future
 # projections? Fit via eda_assumptions_2.py: regressing (future-season ratio - 1)
 # on (known-ratio-through-week-N - 1) for this league's 14 real rosters replayed
-# against 3 real seasons (n=42 team-seasons per split). The empirical slope --
-# i.e. the CORRECT weight, not an assumed one -- was 0.126 at week 6 and never
-# exceeded ~0.19 at any split tested, far below the old min(n/6, 1.0) formula's
-# full trust (1.0) by week 6. Fitting weight(n) = n/(n+n0) to those slopes gives
-# n0 ~= 63 -- even a full 17-week season only justifies ~0.21 trust. The signal
-# is real (consistently positive across every split, unlike per-player projection
-# bias which was pure noise -- see historical.py) but much weaker than assumed.
+# against 3 real seasons (n=42 team-seasons per split). The signal is real
+# (consistently positive across every split tested) but weak -- the empirical
+# slope was 0.126 at week 6 and never exceeded ~0.19 at any split. Fitting
+# weight(n) = n/(n+n0) to those slopes gives n0 ~= 63 -- even a full 17-week
+# season only justifies ~0.21 trust in a team's own ratio.
 RATIO_SHRINKAGE_N0 = 63.0
-RATIO_CLAMP = (0.75, 1.30)     # rarely binds under the reshaped weight above -- kept as a safety backstop
+RATIO_CLAMP = (0.75, 1.30)     # rarely binds under the shrinkage above -- kept as a safety backstop
 
-# Re-checked after fixing the injured/inactive phantom-0.0 bug (see
-# historical.week_player_actuals): this backtest came back byte-for-byte
-# identical (same slopes to 3 decimals). Makes sense -- the optimal-lineup
-# selector already benches a zero-value player in favor of a real bench
-# option when one exists, and gets the same result either way (present-as-
-# zero or absent-and-defaulting-to-zero) when it doesn't. RATIO_SHRINKAGE_N0
-# needed no change; see STD_SHRINKAGE_N0 below for the one that did.
-
-# Separate shrinkage for STD blending -- this used to just reuse the ratio weight
-# above, which was never validated for this purpose. Tested the same way (regress
-# future residual std on known residual std, relative to the roster-composition
-# baseline): the signal here is actually STRONGER than the ratio's, especially
-# past week ~8 (weight ~0.35 at week 8, ~0.56 at week 12, vs the ratio's ~0.19-0.09
-# at the same weeks) -- a team's volatility LEVEL (built on boom/bust players or
-# not) is a more persistent, structural trait than its directional luck, which
-# tends to be more transient. n0 fit inverse-variance-weighted to weeks 5-12 (kept
-# out of 2-4, too little data for a variance estimate to mean anything there).
-# Re-measured after fixing a bug where an injured/inactive player still on an
-# active roster could score a false 0.0 (see historical.week_player_actuals) --
-# this backtest moved modestly (26.7 -> 22.5); the RATIO_SHRINKAGE_N0 backtest
-# above was unaffected (confirmed byte-for-byte identical), since the optimal-
-# lineup selector already benches a zero-value player either way, whether that
-# zero came from a real bad week or a since-removed phantom entry.
+# Separate shrinkage for STD blending, fit independently of the ratio weight above
+# (regress future residual std on known residual std, relative to the
+# roster-composition baseline). The signal here is stronger than the ratio's,
+# especially past week ~8 (weight ~0.35 at week 8, ~0.56 at week 12, vs the
+# ratio's ~0.19-0.09 at the same weeks) -- a team's volatility LEVEL (built on
+# boom/bust players or not) is a more persistent, structural trait than its
+# directional luck, which is more transient. n0 fit inverse-variance-weighted to
+# weeks 5-12 (too little data at weeks 2-4 for a variance estimate to mean
+# anything).
 STD_SHRINKAGE_N0 = 22.5
 
 
