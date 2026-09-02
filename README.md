@@ -193,14 +193,24 @@ python3 main.py && python3 build_dashboard.py
 ```
 
 Reads `output/season_sim_<league_id>.json` and writes a static `index.html` at the repo
-root — a standings page with playoff/bye/championship odds, a favorite-to-win-it-all
-callout, and the tightest-race storyline, styled to match this author's other model
-dashboards (dark terminal surface, heatmap-shaded odds table, Inter — see the
+root — title, last-updated date, and a sortable standings table (projected wins,
+playoff/bye/championship/last-place odds, heatmap-shaded), styled to match this author's
+other model dashboards (dark terminal surface, Inter — see the
 [World Cup watchability dashboard](https://iam8bu.github.io/world-cup-watchability-dashboard-2026/)
 for the sibling project this reuses the design language from). No auto-refresh — same
 manual workflow as that project: re-run both commands whenever you want updated numbers,
 open `index.html` locally, or push it somewhere that serves static files (e.g. GitHub
 Pages) if you want a shareable link.
+
+**Every run also archives a dated snapshot** into `snapshots/<date>.json` (one file per
+calendar date — re-running later the same day just updates that day's file). Unlike
+`output/` and `data/`, `snapshots/` is **not** gitignored — it's meant to be committed, so
+the history survives across machines and travels with the repo. All snapshots get embedded
+directly into `index.html` (it's a static file with no backend, so the date dropdown at the
+top switches between data already baked in at build time) and the standings table renders
+client-side in JS from whichever snapshot is selected — that's also why sorting/the
+playoff-line logic live in JS now rather than being pre-rendered in Python. Each snapshot
+is auto-labeled "Preseason" (before week 1) or "Week N" once games are underway.
 
 ### Showing real names instead of Sleeper team names (optional, local-only)
 

@@ -44,8 +44,23 @@ header h1 span { color: var(--green); }
   color: var(--muted); font-size: 11px; margin-top: 10px;
 }
 
+/* -- Snapshot picker -- */
+.snapshot-row {
+  max-width: 900px; margin: 20px auto 0; padding: 0 14px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.snapshot-row label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted);
+}
+#snapshot-select {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer;
+}
+#snapshot-select:hover { border-color: var(--green); }
+
 /* -- Standings table -- */
-.tourn-wrap { max-width: 900px; margin: 0 auto; padding: 26px 14px 40px; }
+.tourn-wrap { max-width: 900px; margin: 0 auto; padding: 18px 14px 40px; }
 .tourn-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
 .tourn-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 620px; }
 .tourn-table th {
@@ -79,4 +94,96 @@ header h1 span { color: var(--green); }
 @media (max-width: 640px) {
   header { padding: 28px 18px 22px; }
 }
-</style></head><body><header><h1>David&#x27;s Yard Restoration PAC <span>&mdash; Playoff Odds</span></h1><p class="subtitle">Based on 20,000 simulations of the season.</p><p class="updated">Last updated Sep 02, 2026</p></header><div class="tourn-wrap"><div class="tourn-scroll"><table id="tourn-table" class="tourn-table"><thead><tr><th onclick="sortTourn(0)" data-col="0">#</th><th onclick="sortTourn(1)" data-col="1">Team</th><th onclick="sortTourn(2)" data-col="2" class="sort-active">Proj. Wins &#8595;</th><th onclick="sortTourn(3)" data-col="3">Make Playoffs</th><th onclick="sortTourn(4)" data-col="4">1st Round Bye</th><th onclick="sortTourn(5)" data-col="5">Champion</th><th onclick="sortTourn(6)" data-col="6">Last Place</th></tr></thead><tbody><tr><td>1</td><td>Asher <span class="record-inline">(0-0)</span></td><td>8.5</td><td style="background:rgba(38,160,106,0.3)">86.6%</td><td style="background:rgba(38,160,106,0.3)">54.8%</td><td style="background:rgba(184,122,26,0.3)">29.0%</td><td style="background:rgba(248,81,73,0.005)">0.3%</td></tr><tr><td>2</td><td>Isaac <span class="record-inline">(0-0)</span></td><td>7.2</td><td style="background:rgba(38,160,106,0.209)">60.3%</td><td style="background:rgba(38,160,106,0.123)">22.5%</td><td style="background:rgba(184,122,26,0.104)">10.1%</td><td style="background:rgba(248,81,73,0.037)">2.2%</td></tr><tr><td>3</td><td>Jackson <span class="record-inline">(0-0)</span></td><td>7.1</td><td style="background:rgba(38,160,106,0.198)">57.2%</td><td style="background:rgba(38,160,106,0.111)">20.2%</td><td style="background:rgba(184,122,26,0.107)">10.3%</td><td style="background:rgba(248,81,73,0.045)">2.7%</td></tr><tr><td>4</td><td>David <span class="record-inline">(0-0)</span></td><td>6.9</td><td style="background:rgba(38,160,106,0.182)">52.5%</td><td style="background:rgba(38,160,106,0.09)">16.4%</td><td style="background:rgba(184,122,26,0.086)">8.3%</td><td style="background:rgba(248,81,73,0.055)">3.3%</td></tr><tr><td>5</td><td>Pedro <span class="record-inline">(0-0)</span></td><td>6.6</td><td style="background:rgba(38,160,106,0.162)">46.8%</td><td style="background:rgba(38,160,106,0.076)">13.9%</td><td style="background:rgba(184,122,26,0.074)">7.2%</td><td style="background:rgba(248,81,73,0.075)">4.5%</td></tr><tr><td>6</td><td>Connor <span class="record-inline">(0-0)</span></td><td>6.4</td><td style="background:rgba(38,160,106,0.14)">40.3%</td><td style="background:rgba(38,160,106,0.057)">10.4%</td><td style="background:rgba(184,122,26,0.055)">5.3%</td><td style="background:rgba(248,81,73,0.105)">6.3%</td></tr><tr class="playoff-line"><td colspan="7"><div class="line-inner"><div class="rule"></div><div class="label">Playoff line</div><div class="rule"></div></div></td></tr><tr><td>7</td><td>Brendan <span class="record-inline">(0-0)</span></td><td>6.4</td><td style="background:rgba(38,160,106,0.139)">40.2%</td><td style="background:rgba(38,160,106,0.06)">10.9%</td><td style="background:rgba(184,122,26,0.051)">4.9%</td><td style="background:rgba(248,81,73,0.115)">6.9%</td></tr><tr><td>8</td><td>Chris <span class="record-inline">(0-0)</span></td><td>6.3</td><td style="background:rgba(38,160,106,0.13)">37.5%</td><td style="background:rgba(38,160,106,0.053)">9.6%</td><td style="background:rgba(184,122,26,0.056)">5.4%</td><td style="background:rgba(248,81,73,0.12)">7.2%</td></tr><tr><td>9</td><td>Nathan <span class="record-inline">(0-0)</span></td><td>6.3</td><td style="background:rgba(38,160,106,0.136)">39.2%</td><td style="background:rgba(38,160,106,0.057)">10.4%</td><td style="background:rgba(184,122,26,0.053)">5.1%</td><td style="background:rgba(248,81,73,0.113)">6.8%</td></tr><tr><td>10</td><td>Landon <span class="record-inline">(0-0)</span></td><td>6.3</td><td style="background:rgba(38,160,106,0.132)">38.0%</td><td style="background:rgba(38,160,106,0.052)">9.5%</td><td style="background:rgba(184,122,26,0.05)">4.8%</td><td style="background:rgba(248,81,73,0.117)">7.0%</td></tr><tr><td>11</td><td>Matt <span class="record-inline">(0-0)</span></td><td>6.1</td><td style="background:rgba(38,160,106,0.116)">33.5%</td><td style="background:rgba(38,160,106,0.043)">7.9%</td><td style="background:rgba(184,122,26,0.039)">3.8%</td><td style="background:rgba(248,81,73,0.14)">8.4%</td></tr><tr><td>12</td><td>Will <span class="record-inline">(0-0)</span></td><td>5.8</td><td style="background:rgba(38,160,106,0.09)">26.1%</td><td style="background:rgba(38,160,106,0.031)">5.6%</td><td style="background:rgba(184,122,26,0.028)">2.7%</td><td style="background:rgba(248,81,73,0.208)">12.5%</td></tr><tr><td>13</td><td>Jonathan <span class="record-inline">(0-0)</span></td><td>5.7</td><td style="background:rgba(38,160,106,0.081)">23.5%</td><td style="background:rgba(38,160,106,0.026)">4.8%</td><td style="background:rgba(184,122,26,0.019)">1.8%</td><td style="background:rgba(248,81,73,0.232)">13.9%</td></tr><tr><td>14</td><td>Grant <span class="record-inline">(0-0)</span></td><td>5.4</td><td style="background:rgba(38,160,106,0.063)">18.3%</td><td style="background:rgba(38,160,106,0.018)">3.2%</td><td style="background:rgba(184,122,26,0.014)">1.4%</td><td style="background:rgba(248,81,73,0.3)">18.0%</td></tr></tbody></table></div></div><script>var _tDir=-1,_tCol=2;var PLAYOFF_TEAMS=6,N_TEAMS=14,LAST_PLACE_COL=6;function sortTourn(col){var tbl=document.getElementById("tourn-table");var tbody=tbl.querySelector("tbody");var rows=Array.from(tbody.querySelectorAll("tr:not(.playoff-line)"));var divider=tbody.querySelector(".playoff-line");if(col===_tCol)_tDir*=-1;else{_tDir=-1;_tCol=col;}rows.sort(function(a,b){var av=a.cells[col].innerText.replace("%","");var bv=b.cells[col].innerText.replace("%","");var an=parseFloat(av),bn=parseFloat(bv);if(isNaN(an)||isNaN(bn))return _tDir*av.localeCompare(bv);return _tDir*(bn-an);});tbody.querySelectorAll("tr").forEach(function(r){tbody.removeChild(r);});rows.forEach(function(r,i){r.cells[0].innerText=i+1;tbody.appendChild(r);});var bestFirst=(col===LAST_PLACE_COL)?(_tDir===-1):(_tDir===1);var cutoffIdx=bestFirst?PLAYOFF_TEAMS:(N_TEAMS-PLAYOFF_TEAMS);if(divider&&cutoffIdx>0&&cutoffIdx<=tbody.children.length){tbody.children[cutoffIdx-1].insertAdjacentElement("afterend",divider);}tbl.querySelectorAll("th").forEach(function(th,i){th.className=i===_tCol?"sort-active":"";th.innerHTML=th.innerHTML.replace(/[ \u2191\u2193]/g,"")+(i===_tCol?(_tDir===-1?" \u2193":" \u2191"):"");});}</script></body></html>
+</style></head><body><header><h1>David&#x27;s Yard Restoration PAC <span>&mdash; Playoff Odds</span></h1><p class="subtitle">Based on 20,000 simulations of the season.</p><p class="updated">Last updated Sep 02, 2026</p></header><div class="snapshot-row"><label for="snapshot-select">Viewing</label><select id="snapshot-select" onchange="renderSnapshot(this.value)"><option value="2026-09-02" selected>9/2 &mdash; Preseason</option></select></div><div class="tourn-wrap"><div class="tourn-scroll"><table id="tourn-table" class="tourn-table"><thead><tr><th onclick="sortTourn(0)" data-col="0">#</th><th onclick="sortTourn(1)" data-col="1">Team</th><th onclick="sortTourn(2)" data-col="2" class="sort-active">Proj. Wins &#8595;</th><th onclick="sortTourn(3)" data-col="3">Make Playoffs</th><th onclick="sortTourn(4)" data-col="4">1st Round Bye</th><th onclick="sortTourn(5)" data-col="5">Champion</th><th onclick="sortTourn(6)" data-col="6">Last Place</th></tr></thead><tbody id="standings-body"></tbody></table></div></div><script>var SNAPSHOTS={"2026-09-02": {"date": "2026-09-02", "label": "Preseason", "teams": [{"team": "Asher", "record": "0-0", "proj_next_wk": 135.2, "std_next_wk": 24.3, "avg_final_wins": 8.5, "avg_final_pts": 1723.4, "avg_seed": 3.3, "playoff_pct": 86.6, "bye_pct": 54.8, "final_pct": 46.3, "champ_pct": 29.0, "last_pct": 0.3}, {"team": "Isaac", "record": "0-0", "proj_next_wk": 132.4, "std_next_wk": 21.4, "avg_final_wins": 7.2, "avg_final_pts": 1644.2, "avg_seed": 5.8, "playoff_pct": 60.3, "bye_pct": 22.5, "final_pct": 20.0, "champ_pct": 10.1, "last_pct": 2.2}, {"team": "Jackson", "record": "0-0", "proj_next_wk": 126.3, "std_next_wk": 20.6, "avg_final_wins": 7.1, "avg_final_pts": 1613.1, "avg_seed": 6.1, "playoff_pct": 57.2, "bye_pct": 20.2, "final_pct": 20.9, "champ_pct": 10.3, "last_pct": 2.7}, {"team": "David", "record": "0-0", "proj_next_wk": 121.0, "std_next_wk": 21.0, "avg_final_wins": 6.9, "avg_final_pts": 1616.9, "avg_seed": 6.6, "playoff_pct": 52.5, "bye_pct": 16.4, "final_pct": 17.2, "champ_pct": 8.3, "last_pct": 3.3}, {"team": "Pedro", "record": "0-0", "proj_next_wk": 127.6, "std_next_wk": 21.4, "avg_final_wins": 6.6, "avg_final_pts": 1610.9, "avg_seed": 7.1, "playoff_pct": 46.8, "bye_pct": 13.9, "final_pct": 14.8, "champ_pct": 7.2, "last_pct": 4.5}, {"team": "Connor", "record": "0-0", "proj_next_wk": 122.4, "std_next_wk": 22.0, "avg_final_wins": 6.4, "avg_final_pts": 1578.3, "avg_seed": 7.7, "playoff_pct": 40.3, "bye_pct": 10.4, "final_pct": 11.7, "champ_pct": 5.3, "last_pct": 6.3}, {"team": "Brendan", "record": "0-0", "proj_next_wk": 125.7, "std_next_wk": 25.4, "avg_final_wins": 6.4, "avg_final_pts": 1575.7, "avg_seed": 7.8, "playoff_pct": 40.2, "bye_pct": 10.9, "final_pct": 11.6, "champ_pct": 4.9, "last_pct": 6.9}, {"team": "Chris", "record": "0-0", "proj_next_wk": 128.3, "std_next_wk": 23.2, "avg_final_wins": 6.3, "avg_final_pts": 1583.3, "avg_seed": 8.0, "playoff_pct": 37.5, "bye_pct": 9.6, "final_pct": 11.4, "champ_pct": 5.4, "last_pct": 7.2}, {"team": "Nathan", "record": "0-0", "proj_next_wk": 124.9, "std_next_wk": 22.8, "avg_final_wins": 6.3, "avg_final_pts": 1583.2, "avg_seed": 7.8, "playoff_pct": 39.2, "bye_pct": 10.4, "final_pct": 10.7, "champ_pct": 5.1, "last_pct": 6.8}, {"team": "Landon", "record": "0-0", "proj_next_wk": 114.4, "std_next_wk": 24.3, "avg_final_wins": 6.3, "avg_final_pts": 1568.7, "avg_seed": 7.9, "playoff_pct": 38.0, "bye_pct": 9.5, "final_pct": 11.1, "champ_pct": 4.8, "last_pct": 7.0}, {"team": "Matt", "record": "0-0", "proj_next_wk": 124.2, "std_next_wk": 21.6, "avg_final_wins": 6.1, "avg_final_pts": 1570.0, "avg_seed": 8.4, "playoff_pct": 33.5, "bye_pct": 7.9, "final_pct": 9.1, "champ_pct": 3.8, "last_pct": 8.4}, {"team": "Will", "record": "0-0", "proj_next_wk": 120.4, "std_next_wk": 23.2, "avg_final_wins": 5.8, "avg_final_pts": 1538.8, "avg_seed": 9.1, "playoff_pct": 26.1, "bye_pct": 5.6, "final_pct": 6.6, "champ_pct": 2.7, "last_pct": 12.5}, {"team": "Jonathan", "record": "0-0", "proj_next_wk": 116.3, "std_next_wk": 23.3, "avg_final_wins": 5.7, "avg_final_pts": 1528.9, "avg_seed": 9.4, "playoff_pct": 23.5, "bye_pct": 4.8, "final_pct": 4.6, "champ_pct": 1.8, "last_pct": 13.9}, {"team": "Grant", "record": "0-0", "proj_next_wk": 120.9, "std_next_wk": 21.6, "avg_final_wins": 5.4, "avg_final_pts": 1502.5, "avg_seed": 10.0, "playoff_pct": 18.3, "bye_pct": 3.2, "final_pct": 3.9, "champ_pct": 1.4, "last_pct": 18.0}]}};var PLAYOFF_TEAMS=6,LAST_PLACE_COL=6;var _tDir=-1,_tCol=2;
+function heatBg(val,maxVal,rgb){
+  if(!val||maxVal<=0)return '';
+  var intensity=Math.round((val/maxVal)*0.30*1000)/1000;
+  return "background:rgba("+rgb+","+intensity+")";
+}
+
+function renderSnapshot(key){
+  var teams=SNAPSHOTS[key].teams;
+  var tbody=document.getElementById('standings-body');
+  while(tbody.firstChild)tbody.removeChild(tbody.firstChild);
+  var maxPlayoff=Math.max.apply(null,teams.map(function(t){return t.playoff_pct;}))||1;
+  var maxBye=Math.max.apply(null,teams.map(function(t){return t.bye_pct;}))||1;
+  var maxChamp=Math.max.apply(null,teams.map(function(t){return t.champ_pct;}))||1;
+  var maxLast=Math.max.apply(null,teams.map(function(t){return t.last_pct;}))||1;
+
+  function cell(text,style){
+    var td=document.createElement('td');
+    if(style)td.setAttribute('style',style);
+    td.textContent=text;
+    return td;
+  }
+
+  teams.forEach(function(t,i){
+    var tr=document.createElement('tr');
+    var nameTd=document.createElement('td');
+    nameTd.appendChild(document.createTextNode(t.team+' '));
+    var rec=document.createElement('span');
+    rec.className='record-inline';
+    rec.textContent='('+t.record+')';
+    nameTd.appendChild(rec);
+    tr.appendChild(cell(String(i+1)));
+    tr.appendChild(nameTd);
+    tr.appendChild(cell(t.avg_final_wins.toFixed(1)));
+    tr.appendChild(cell(t.playoff_pct.toFixed(1)+'%',heatBg(t.playoff_pct,maxPlayoff,'38,160,106')));
+    tr.appendChild(cell(t.bye_pct.toFixed(1)+'%',heatBg(t.bye_pct,maxBye,'38,160,106')));
+    tr.appendChild(cell(t.champ_pct.toFixed(1)+'%',heatBg(t.champ_pct,maxChamp,'184,122,26')));
+    tr.appendChild(cell(t.last_pct.toFixed(1)+'%',heatBg(t.last_pct,maxLast,'248,81,73')));
+    tbody.appendChild(tr);
+  });
+
+  var divider=document.createElement('tr');
+  divider.className='playoff-line';
+  var td=document.createElement('td');
+  td.colSpan=7;
+  var inner=document.createElement('div');
+  inner.className='line-inner';
+  var rule1=document.createElement('div'); rule1.className='rule';
+  var label=document.createElement('div'); label.className='label'; label.textContent='Playoff line';
+  var rule2=document.createElement('div'); rule2.className='rule';
+  inner.appendChild(rule1); inner.appendChild(label); inner.appendChild(rule2);
+  td.appendChild(inner);
+  divider.appendChild(td);
+  tbody.children[PLAYOFF_TEAMS-1].insertAdjacentElement('afterend',divider);
+
+  _tDir=-1; _tCol=2;
+  document.querySelectorAll('#tourn-table th').forEach(function(th,i){
+    th.className=i===2?'sort-active':'';
+    th.innerHTML=th.innerHTML.replace(/[ \u2191\u2193]/g,'')+(i===2?' \u2193':'');
+  });
+}
+
+function sortTourn(col){
+  var tbl=document.getElementById("tourn-table");
+  var tbody=tbl.querySelector("tbody");
+  var rows=Array.from(tbody.querySelectorAll("tr:not(.playoff-line)"));
+  var divider=tbody.querySelector(".playoff-line");
+  if(col===_tCol)_tDir*=-1;else{_tDir=-1;_tCol=col;}
+  rows.sort(function(a,b){
+    var av=a.cells[col].innerText.replace("%","");
+    var bv=b.cells[col].innerText.replace("%","");
+    var an=parseFloat(av),bn=parseFloat(bv);
+    if(isNaN(an)||isNaN(bn))return _tDir*av.localeCompare(bv);
+    return _tDir*(bn-an);
+  });
+  tbody.querySelectorAll("tr").forEach(function(r){tbody.removeChild(r);});
+  rows.forEach(function(r,i){r.cells[0].innerText=i+1;tbody.appendChild(r);});
+  // Position-based, not team-based: the 6 best teams by whatever's currently sorted
+  // are always "in", so the line sits after row 6 when they're on top (descending
+  // for every column except Last Place, where lower is better, so it's ascending
+  // there instead) or after row (N-6) when they're at the bottom (sort reversed).
+  var nTeams=rows.length;
+  var bestFirst=(col===LAST_PLACE_COL)?(_tDir===-1):(_tDir===1);
+  var cutoffIdx=bestFirst?PLAYOFF_TEAMS:(nTeams-PLAYOFF_TEAMS);
+  if(divider&&cutoffIdx>0&&cutoffIdx<=tbody.children.length){
+    tbody.children[cutoffIdx-1].insertAdjacentElement("afterend",divider);
+  }
+  tbl.querySelectorAll("th").forEach(function(th,i){
+    th.className=i===_tCol?"sort-active":"";
+    th.innerHTML=th.innerHTML.replace(/[ \u2191\u2193]/g,"")+(i===_tCol?(_tDir===-1?" \u2193":" \u2191"):"");
+  });
+}
+renderSnapshot('2026-09-02');</script></body></html>
