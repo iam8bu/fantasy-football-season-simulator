@@ -38,9 +38,9 @@ CSS = """
   --border:    #30363d;
   --text:      #e6edf3;
   --muted:     #7d8590;
-  --blue:      #2f81f7;
-  --blue-dim:  rgba(47,129,247,.09);
-  --blue-bdr:  rgba(47,129,247,.28);
+  --gold:      #b87a1a;
+  --gold-dim:  rgba(184,122,26,.12);
+  --gold-bdr:  rgba(184,122,26,.35);
   --green:     #26a06a;
   --green-dim: rgba(38,160,106,.09);
   --green-bdr: rgba(38,160,106,.28);
@@ -73,7 +73,7 @@ header h1 {
   font-weight: 900; letter-spacing: -.6px; line-height: 1.1;
   margin-bottom: 12px;
 }
-header h1 span { color: var(--blue); }
+header h1 span { color: var(--green); }
 .subtitle {
   color: var(--muted); font-size: 13px; line-height: 1.6;
   max-width: 560px; margin: 0 auto;
@@ -109,7 +109,7 @@ header h1 span { color: var(--blue); }
 .dot.green { background: var(--green); }
 .dot.amber { background: var(--amber); }
 .dot.red   { background: var(--red); }
-.dot.blue  { background: var(--blue); }
+.dot.gold  { background: var(--gold); }
 
 /* -- Standings table -- */
 .tourn-wrap { max-width: 900px; margin: 0 auto; padding: 26px 14px 10px; }
@@ -136,7 +136,7 @@ header h1 span { color: var(--blue); }
 .team-name-cell { display: flex; align-items: center; gap: 7px; justify-content: flex-start; }
 .fav-badge {
   font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 4px;
-  background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue-bdr);
+  background: var(--gold-dim); color: var(--gold); border: 1px solid var(--gold-bdr);
   text-transform: uppercase; letter-spacing: .4px;
 }
 .record-sub { color: var(--muted); font-size: 11px; }
@@ -159,7 +159,7 @@ footer {
   text-align: center; padding: 24px 20px 30px;
   color: var(--muted); font-size: 11px; line-height: 1.8;
 }
-footer a { color: var(--blue); text-decoration: none; }
+footer a { color: var(--green); text-decoration: none; }
 footer a:hover { text-decoration: underline; }
 
 /* -- Responsive -- */
@@ -185,7 +185,7 @@ def heat_bg(val: float, max_val: float, cls: str) -> str:
     technique as the World Cup tournament table)."""
     if not val or max_val <= 0:
         return ""
-    color = {"green": "38,160,106", "amber": "210,153,34", "red": "248,81,73"}[cls]
+    color = {"green": "38,160,106", "amber": "210,153,34", "red": "248,81,73", "gold": "184,122,26"}[cls]
     intensity = round((val / max_val) * 0.30, 3)  # capped well below opaque -- text stays readable
     return f' style="background:rgba({color},{intensity})"'
 
@@ -236,7 +236,7 @@ def build_html(data: dict) -> str:
             f"<td>{name_cell}</td>"
             f'<td{heat_bg(t["playoff_pct"], max_playoff, "green")}>{t["playoff_pct"]:.1f}%</td>'
             f'<td{heat_bg(t["bye_pct"], max_bye, "green")}>{t["bye_pct"]:.1f}%</td>'
-            f'<td{heat_bg(t["champ_pct"], max_champ, "amber")}>{t["champ_pct"]:.1f}%</td>'
+            f'<td{heat_bg(t["champ_pct"], max_champ, "gold")}>{t["champ_pct"]:.1f}%</td>'
             f'<td{heat_bg(t["last_pct"], max_last, "red")}>{t["last_pct"]:.1f}%</td>'
             "</tr>"
         )
