@@ -7,21 +7,21 @@ League: 14 teams, 0.5 PPR, 0.5 PPFD
 
 ## How it works
 
-1. **Data** from Sleeper's public API: rosters, schedule, and results.
-2. **Player Projections** — Sleeper API has a full projected stat line per player per week. See
+1. **Data**: from Sleeper's public API: rosters, schedule, and results.
+2. **Player Projections**: Sleeper API has a full projected stat line per player per week. See
    `src/projections.py`.
-3. **Scoring** — a dot product between
+3. **Scoring**: a dot product between
    the projected stats and our league `scoring_settings`.
-4. **Lineups** — each team's projected score for a given
+4. **Lineups**: each team's projected score for a given
    week is based on its best possible lineup from that week's projected player scores. If a roster doesn't have a backup available, the model pulls in the best player on waivers (see below).
-5. **Team calibration** — once games
+5. **Team calibration**: once games
    are played, each team's actual score is compared to what this engine would have projected
    for that week and the resulting
    actual-vs-projected ratio scales future projections. The decay weight is
    `n / (n + 63)`, fit by backtesting this league's rosters against the past 3 seasons. Weekly volatility (std dev) is estimated the same way, from a
    the residuals between actual scores and this week-specific baseline, with its own
    separately-fit decay weight (`n / (n + 22.5)`)
-6. **Weekly volatility calculation** — `src/historical.py` pulls the last 3 completed seasons of actual results
+6. **Weekly volatility calculation**: `src/historical.py` pulls the last 3 completed seasons of actual results
    and measures how much each player's own score
    varies week to week around their season average. Modifications:
    - **Veterans**, decayed toward the position
@@ -32,16 +32,16 @@ League: 14 teams, 0.5 PPR, 0.5 PPFD
    that pick list is run back through this model, and `Var(sum of picks) = sum of each
    pick's own variance` gives a std dev for
    each team each week.
-7. **Same-team stacking** Exploratory data analysis found that QB-WR and QB-TE pairs on the same real
+7. **Same-team stacking**: Exploratory data analysis found that QB-WR and QB-TE pairs on the same real
    NFL team carry a measured positive correlation. Other
    teammate pairs (WR-WR, QB-RB, RB-RB) showed no significant correlation and are treated as
    independent. `lineup_std_from_picks` adds the corresponding covariance term whenever a
    lineup's real QB and WR1/TE1 share an NFL team.
-8. **Simulate the rest of the season** For every remaining week, each
+8. **Simulate the rest of the season**: For every remaining week, each
    team's score is drawn from a normal distribution centered on that week's calibrated
    projection with that team's std dev, matchups are scored against the real schedule, and
    final regular-season standings are tallied (ties broken by total points).
-9. **Simulate the playoff bracket** each run using the same per-week projections for weeks
+9. **Simulate the playoff bracket**: each run using the same per-week projections for weeks
    14-16 (standard 6-team format: top 2 seeds bye, 3v6 / 4v5 in round 1, reseeded round 2,
    then the championship).
 10. Aggregate across all simulations into playoff / bye / championship / last place odds per team.
