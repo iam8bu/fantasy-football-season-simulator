@@ -54,16 +54,17 @@ def main():
     position_lookup = strength.build_position_lookup(players_db)
     scoring_settings = league["scoring_settings"]
 
-    print("Estimating weekly volatility from last season's real results ...")
-    prev_season = str(int(season) - 1)
-    pos_std = historical.estimate_position_std(prev_season, list(range(1, 18)), scoring_settings, position_lookup)
-    print(f"  Empirical per-position weekly std ({prev_season}): "
-          + ", ".join(f"{pos}={round(std, 1)}" for pos, std in pos_std.items()))
-    fallback_std = historical.composite_lineup_std(slot_req, pos_std)
-    if not fallback_std or fallback_std < 5:
-        print(f"  WARNING: composite std ({fallback_std}) looks off, falling back to flat default.")
-        fallback_std = strength.LEAGUE_FALLBACK_STD
-    print(f"  Composite team-level weekly std: {round(fallback_std, 1)} (replaces flat {strength.LEAGUE_FALLBACK_STD} guess)")
+    print("Estimating weekly volatility from real history (multiple past seasons + recent rookie classes) ...")
+    std_model = historical.build_std_model(season, scoring_settings, position_lookup, players_db)
+    pos_avg = std_model["position_avg_std"]
+    print(f"  Position-average std (last {historical.HISTORY_SEASONS_BACK} seasons): "
+          + ", ".join(f"{pos}={round(std, 1)}" for pos, std in pos_avg.items()))
+    print(f"  Rookie-class std (fallback for players with zero history): "
+          + ", ".join(f"{pos}={round(std, 1)}" for pos, std in std_model["rookie_std"].items()))
+    print(f"  Individual player volatility estimated for {len(std_model['player_std'])} players.")
+    sanity_composite = historical.composite_lineup_std(slot_req, pos_avg)
+    if not sanity_composite or sanity_composite < 5:
+        print(f"  WARNING: composite std ({sanity_composite}) looks off -- historical pull may have failed.")
 
     played_weeks = list(range(1, current_week))
     remaining_weeks = list(range(current_week, regular_season_weeks + 1))
@@ -86,40 +87,51 @@ def main():
     }
 
     team_week_means = {}
-    team_std = {}
+    team_week_std = {}
     for rid, team in teams.items():
         retro_by_week = {
             w: strength.team_week_projection(team.players, week_points[w], position_lookup, slot_req)
             for w in played_weeks
         }
-        ratio, std = strength.calibrate_team(team, retro_by_week, fallback_std=fallback_std)
-        if std is None:
-            std = fallback_std
-        team_std[rid] = std
+        ratio, weight, own_std = strength.calibrate_team_ratio(team, retro_by_week)
 
-        means = {}
+        means, stds = {}, {}
         for w in remaining_weeks + playoff_weeks:
-            base = strength.team_week_projection(
+            base, picks = strength.team_week_lineup(
                 team.players, week_points[w], position_lookup, slot_req,
                 stream_ceilings=stream_ceilings_by_week[w],
             )
             means[w] = base * ratio
+
+            # Roster-specific std: the SPECIFIC players in this week's lineup, not a
+            # generic number -- a boom/bust roster gets a wider band than a steady one.
+            roster_std = historical.lineup_std_from_picks(picks, std_model, players_db, season)
+            if own_std is not None:
+                stds[w] = weight * own_std + (1 - weight) * roster_std
+            else:
+                stds[w] = roster_std
+            stds[w] = max(stds[w], 8.0)
+
         team_week_means[rid] = means
+        team_week_std[rid] = stds
 
     print(f"Running {args.sims} season simulations ...")
     results = simulate.simulate_season(
         teams, regular_season_weeks, current_week, playoff_teams,
-        team_week_means, team_std, n_sims=args.sims,
+        team_week_means, team_week_std, n_sims=args.sims,
     )
 
     rows = []
     for rid, team in teams.items():
         r = results[rid]
-        next_week_mean = team_week_means[rid].get(current_week, team_week_means[rid][remaining_weeks[0]] if remaining_weeks else 0)
+        cw = current_week if current_week in team_week_means[rid] else remaining_weeks[0]
+        next_week_mean = team_week_means[rid].get(cw, 0)
+        next_week_std = team_week_std[rid].get(cw, 0)
         rows.append({
             "team": team.team_name,
             "record": f"{team.wins}-{team.losses}" + (f"-{team.ties}" if team.ties else ""),
             "proj_next_wk": round(next_week_mean, 1),
+            "std_next_wk": round(next_week_std, 1),
             "avg_final_wins": round(r["avg_final_wins"], 1),
             "avg_final_pts": round(r["avg_final_pts"], 1),
             "avg_seed": round(r["avg_seed"], 1),
@@ -131,11 +143,11 @@ def main():
 
     rows.sort(key=lambda x: (-x["champ_pct"], -x["playoff_pct"], -x["avg_final_wins"]))
 
-    headers = ["Team", "Record", "Proj Wk" + str(current_week), "Avg Final W", "Avg Pts", "Avg Seed",
+    headers = ["Team", "Record", "Proj Wk" + str(current_week), "StdDev", "Avg Final W", "Avg Pts", "Avg Seed",
                "Playoff%", "Bye%", "Final%", "Champ%"]
-    keys = ["team", "record", "proj_next_wk", "avg_final_wins", "avg_final_pts",
+    keys = ["team", "record", "proj_next_wk", "std_next_wk", "avg_final_wins", "avg_final_pts",
             "avg_seed", "playoff_pct", "bye_pct", "final_pct", "champ_pct"]
-    widths = [24, 8, 9, 12, 9, 9, 9, 6, 7, 7]
+    widths = [24, 8, 9, 7, 12, 9, 9, 9, 6, 7, 7]
 
     def fmt_row(vals):
         return "  ".join(str(v).ljust(w) for v, w in zip(vals, widths))

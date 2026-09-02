@@ -1,8 +1,9 @@
 """Monte Carlo season simulator: remaining regular season -> standings -> playoff bracket.
 
-Each team's score in a given week is sampled from Normal(week_mean, team_std), where
-week_mean is that team's calibrated, week-specific projection (byes/matchups already
-baked in -- see strength.py) rather than one flat number reused all season.
+Each team's score in a given week is sampled from Normal(week_mean, week_std), where
+both week_mean and week_std are that team's calibrated, WEEK-SPECIFIC values (byes/
+matchups/roster composition already baked in -- see strength.py and historical.py)
+rather than one flat number reused all season.
 """
 import numpy as np
 
@@ -19,7 +20,7 @@ def simulate_season(
     current_week: int,
     playoff_teams: int,
     team_week_means: dict,     # roster_id -> {week: mean_points}, covers remaining + playoff weeks
-    team_std: dict,            # roster_id -> std_points
+    team_week_std: dict,       # roster_id -> {week: std_points}, same coverage
     n_sims: int = 10000,
     seed: int = 42,
 ):
@@ -28,17 +29,17 @@ def simulate_season(
     n_teams = len(roster_ids)
     idx_of = {rid: i for i, rid in enumerate(roster_ids)}
 
-    stds = np.array([team_std[rid] for rid in roster_ids])
-
     base_wins = np.array([teams[rid].wins for rid in roster_ids], dtype=float)
     base_pts = np.array([teams[rid].fpts for rid in roster_ids], dtype=float)
 
     remaining_weeks = list(range(current_week, regular_season_weeks + 1))
     week_means = {w: np.array([team_week_means[rid][w] for rid in roster_ids]) for w in remaining_weeks}
+    week_stds = {w: np.array([team_week_std[rid][w] for rid in roster_ids]) for w in remaining_weeks}
 
     playoff_rounds = playoff_round_count(playoff_teams)
     playoff_weeks = [regular_season_weeks + r for r in range(1, playoff_rounds + 1)]
     playoff_means = {w: np.array([team_week_means[rid][w] for rid in roster_ids]) for w in playoff_weeks}
+    playoff_stds = {w: np.array([team_week_std[rid][w] for rid in roster_ids]) for w in playoff_weeks}
 
     made_playoffs = np.zeros(n_teams)
     got_bye = np.zeros(n_teams)
@@ -53,7 +54,7 @@ def simulate_season(
         pts = base_pts.copy()
 
         for week in remaining_weeks:
-            scores = np.clip(rng.normal(week_means[week], stds), 0, None)
+            scores = np.clip(rng.normal(week_means[week], week_stds[week]), 0, None)
             pts += scores
             seen = set()
             for rid in roster_ids:
@@ -85,8 +86,8 @@ def simulate_season(
         made_playoffs[playoff_idx] += 1
 
         def play(a, b, week):
-            m = playoff_means[week]
-            sa, sb = rng.normal(m[a], stds[a]), rng.normal(m[b], stds[b])
+            m, s = playoff_means[week], playoff_stds[week]
+            sa, sb = rng.normal(m[a], s[a]), rng.normal(m[b], s[b])
             return a if sa >= sb else b
 
         seeds = list(playoff_idx)

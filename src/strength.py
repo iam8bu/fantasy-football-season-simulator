@@ -29,17 +29,17 @@ Two stages:
    the actual-vs-projected calibration in stage 2 stays honest about each team's
    real roster.
 
-The LEAGUE_FALLBACK_STD constant below is only a last-resort default (used if
-main.py doesn't supply a real one). In practice main.py computes an empirically
-grounded fallback from a past season's actual results -- see historical.py --
-and passes it into calibrate_team() instead of relying on this guess.
+Volatility (std dev) itself is NOT computed in this module -- calibrate_team_ratio
+below only returns a team's own residual std once it has real results. The
+week-specific fallback/blend-target comes from historical.py, which derives it
+from actual past results for the SPECIFIC players in a given week's lineup,
+rather than a flat guess.
 """
 import math
 
 import projections
 
 SLOT_POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
-LEAGUE_FALLBACK_STD = 22.0     # used until a team has enough played weeks for its own residual std
 RATIO_FULL_WEIGHT_WEEK = 6     # by this many played weeks, trust the team's own performance ratio fully
 RATIO_CLAMP = (0.75, 1.30)     # keep calibration from overreacting to small samples / one wild week
 
@@ -47,8 +47,8 @@ RATIO_CLAMP = (0.75, 1.30)     # keep calibration from overreacting to small sam
 def best_lineup_points(
     player_ids: list, points_by_pid: dict, position_by_pid: dict, slot_requirements: dict,
     stream_ceilings: dict = None,
-) -> float:
-    """Optimal starting lineup total for one week, given roster slot counts.
+):
+    """Optimal starting lineup for one week, given roster slot counts.
 
     slot_requirements example: {'QB': 1, 'RB': 2, 'WR': 2, 'TE': 1, 'FLEX': 1, 'K': 1, 'DEF': 1}
     FLEX eligible positions: RB/WR/TE.
@@ -59,36 +59,48 @@ def best_lineup_points(
     always wins over a hypothetical streamer, no matter the streamer's projection. Also
     covers a team not rostering enough players at a position to fill the slot at all
     (e.g. carrying zero kickers), not just a bye -- both leave the slot empty the same way.
+
+    Returns (total, picks) where picks is [(position, player_id_or_None), ...] for
+    every starting slot filled -- player_id is None for a hypothetical streamed
+    replacement, since we don't know exactly who it'd be. Used downstream to derive
+    a lineup's volatility from the specific real players in it (see historical.py).
     """
     by_pos = {pos: [] for pos in SLOT_POSITIONS}
     for pid in player_ids:
         pos = position_by_pid.get(pid)
         if pos not in by_pos:
             continue
-        by_pos[pos].append(points_by_pid.get(pid, 0.0))
+        by_pos[pos].append((points_by_pid.get(pid, 0.0), pid))
     for pos in by_pos:
-        by_pos[pos].sort(reverse=True)
+        by_pos[pos].sort(key=lambda x: -x[0])
 
     total = 0.0
+    picks = []
     used = {pos: 0 for pos in SLOT_POSITIONS}
     for pos in SLOT_POSITIONS:
         n = slot_requirements.get(pos, 0)
         take = by_pos[pos][:n]
         used[pos] = len(take)  # real rostered players consumed, for FLEX below -- unaffected by streaming
+        filled = list(take)
         if stream_ceilings and pos in stream_ceilings:
-            take = [v if v > 0 else stream_ceilings[pos] for v in take]
-            deficit = n - len(take)   # roster doesn't even have enough players at this position at all
+            filled = [(v, pid) if v > 0 else (stream_ceilings[pos], None) for v, pid in filled]
+            deficit = n - len(filled)   # roster doesn't even have enough players at this position at all
             if deficit > 0:
-                take = take + [stream_ceilings[pos]] * deficit
-        total += sum(take)
+                filled += [(stream_ceilings[pos], None)] * deficit
+        for pts, pid in filled:
+            total += pts
+            picks.append((pos, pid))
 
     flex_n = slot_requirements.get("FLEX", 0)
     remaining = []
     for pos in ("RB", "WR", "TE"):
-        remaining.extend(by_pos[pos][used[pos]:])
-    remaining.sort(reverse=True)
-    total += sum(remaining[:flex_n])
-    return total
+        remaining.extend((pts, pid, pos) for pts, pid in by_pos[pos][used[pos]:])
+    remaining.sort(key=lambda x: -x[0])
+    for pts, pid, pos in remaining[:flex_n]:
+        total += pts
+        picks.append((pos, pid))
+
+    return total, picks
 
 
 def build_position_lookup(players_db: dict) -> dict:
@@ -134,23 +146,42 @@ def team_week_projection(
     team_players: list, week_points: dict, position_lookup: dict, slot_req: dict,
     stream_ceilings: dict = None,
 ) -> float:
+    total, _picks = best_lineup_points(team_players, week_points, position_lookup, slot_req, stream_ceilings)
+    return total
+
+
+def team_week_lineup(
+    team_players: list, week_points: dict, position_lookup: dict, slot_req: dict,
+    stream_ceilings: dict = None,
+):
+    """Like team_week_projection, but also returns the picks list (see
+    best_lineup_points) -- used when the caller needs to know WHO was started,
+    not just the point total, e.g. to derive that lineup's own volatility.
+    """
     return best_lineup_points(team_players, week_points, position_lookup, slot_req, stream_ceilings)
 
 
-def calibrate_team(team, retro_projection_by_week: dict, fallback_std: float = LEAGUE_FALLBACK_STD):
+def calibrate_team_ratio(team, retro_projection_by_week: dict):
     """Compare a team's actual scores so far to this engine's own retroactive
-    projection for those same weeks, and return (ratio, std) for scaling/spreading
-    future-week base projections.
+    projection for those same weeks. Returns (ratio, weight, own_std):
 
-    fallback_std: used both pre-season (no played weeks yet) and to shrink toward
-    before a team has enough of its own played weeks to trust. Pass the empirically
-    derived composite from historical.py rather than the flat module default when
-    available -- see main.py.
+    - ratio: scales future-week base projections -- a team over/under-performing
+      its own matchup-specific projections gets adjusted, not just blended
+      against a flat preseason average.
+    - weight: how much to trust this team's OWN numbers vs. a fallback, based on
+      sample size (full trust by RATIO_FULL_WEIGHT_WEEK played weeks).
+    - own_std: this team's own residual std (actual - retroactive projection), or
+      None if there's not enough data yet (< 2 played weeks).
+
+    The caller (main.py) blends own_std with a per-week, roster-composition-based
+    std from historical.py -- std is NOT resolved here, since the right fallback
+    varies week to week (who's actually in that week's lineup), not just team to
+    team.
     """
     played_weeks = [w for w in team.weekly_scores if w in retro_projection_by_week]
     n = len(played_weeks)
     if n == 0:
-        return 1.0, None  # no data yet -- caller falls back to fallback_std
+        return 1.0, 0.0, None
 
     actual = [team.weekly_scores[w] for w in played_weeks]
     proj = [retro_projection_by_week[w] for w in played_weeks]
@@ -163,14 +194,11 @@ def calibrate_team(team, retro_projection_by_week: dict, fallback_std: float = L
     ratio = 1.0 + weight * (raw_ratio - 1.0)
     ratio = max(RATIO_CLAMP[0], min(RATIO_CLAMP[1], ratio))
 
+    own_std = None
     if n >= 2:
         residuals = [a - p for a, p in zip(actual, proj)]
         mean_resid = sum(residuals) / n
         var = sum((r - mean_resid) ** 2 for r in residuals) / (n - 1)
-        std = math.sqrt(var) if var > 0 else fallback_std
-    else:
-        std = fallback_std
+        own_std = math.sqrt(var) if var > 0 else None
 
-    # Blend toward the fallback until there's a real sample to trust.
-    std = weight * std + (1 - weight) * fallback_std
-    return ratio, max(std, 8.0)
+    return ratio, weight, own_std
