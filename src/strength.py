@@ -40,8 +40,19 @@ import math
 import projections
 
 SLOT_POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
-RATIO_FULL_WEIGHT_WEEK = 6     # by this many played weeks, trust the team's own performance ratio fully
-RATIO_CLAMP = (0.75, 1.30)     # keep calibration from overreacting to small samples / one wild week
+
+# How much should a team's early-season actual-vs-projected ratio move its future
+# projections? Fit via eda_assumptions_2.py: regressing (future-season ratio - 1)
+# on (known-ratio-through-week-N - 1) for this league's 14 real rosters replayed
+# against 3 real seasons (n=42 team-seasons per split). The empirical slope --
+# i.e. the CORRECT weight, not an assumed one -- was 0.126 at week 6 and never
+# exceeded ~0.19 at any split tested, far below the old min(n/6, 1.0) formula's
+# full trust (1.0) by week 6. Fitting weight(n) = n/(n+n0) to those slopes gives
+# n0 ~= 63 -- even a full 17-week season only justifies ~0.21 trust. The signal
+# is real (consistently positive across every split, unlike per-player projection
+# bias which was pure noise -- see historical.py) but much weaker than assumed.
+RATIO_SHRINKAGE_N0 = 63.0
+RATIO_CLAMP = (0.75, 1.30)     # rarely binds under the reshaped weight above -- kept as a safety backstop
 
 
 def best_lineup_points(
@@ -169,9 +180,16 @@ def calibrate_team_ratio(team, retro_projection_by_week: dict):
       its own matchup-specific projections gets adjusted, not just blended
       against a flat preseason average.
     - weight: how much to trust this team's OWN numbers vs. a fallback, based on
-      sample size (full trust by RATIO_FULL_WEIGHT_WEEK played weeks).
+      sample size (see RATIO_SHRINKAGE_N0 -- this is NOT "full trust eventually,"
+      it caps well below 1.0 because the evidence shows most of the observed
+      swing at realistic sample sizes is noise, not a persistent team effect).
     - own_std: this team's own residual std (actual - retroactive projection), or
       None if there's not enough data yet (< 2 played weeks).
+
+    NOTE: this same `weight` is also currently reused by main.py to blend std dev
+    (own residual std vs. roster-composition std). That reuse hasn't been
+    separately validated -- the evidence behind RATIO_SHRINKAGE_N0 is specifically
+    about the MEAN/ratio side. Treat that as an open question, not a settled one.
 
     The caller (main.py) blends own_std with a per-week, roster-composition-based
     std from historical.py -- std is NOT resolved here, since the right fallback
@@ -190,7 +208,7 @@ def calibrate_team_ratio(team, retro_projection_by_week: dict):
     total_proj = sum(proj)
     raw_ratio = total_actual / total_proj if total_proj > 0 else 1.0
 
-    weight = min(n / RATIO_FULL_WEIGHT_WEEK, 1.0)
+    weight = n / (n + RATIO_SHRINKAGE_N0)
     ratio = 1.0 + weight * (raw_ratio - 1.0)
     ratio = max(RATIO_CLAMP[0], min(RATIO_CLAMP[1], ratio))
 

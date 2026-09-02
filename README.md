@@ -22,15 +22,17 @@ League: **David's Yard Restoration PAC** (Sleeper league `1392633709420646400`, 
    week is its best possible lineup from that week's player values, given the league's real
    roster slots. Byes and missing projections fall out for free: a player with no projection
    that week is simply worth 0 and won't be selected.
-5. **Team calibration from real results** — once games are played, each team's actual score
-   is compared to what this same engine would have projected for that week (run
-   retroactively on the team's current roster). The resulting actual-vs-projected ratio,
-   shrunk toward 1.0 based on sample size (full weight by 6 played weeks), scales that
-   team's future-week projections — so a team over/under-performing its own matchup-specific
-   projections gets adjusted, not just blended against a flat preseason average. Weekly
-   volatility (std dev) is likewise estimated from the residuals between actual scores and
-   this week-specific baseline, falling back to an empirically-derived default (see next)
-   until there's enough data.
+5. **Team calibration from real results, shrunk by how much the evidence actually supports** —
+   once games are played, each team's actual score is compared to what this same engine would
+   have projected for that week (run retroactively on the team's current roster), and the
+   resulting actual-vs-projected ratio scales future-week projections. The shrinkage weight is
+   NOT "ramp to full trust by week N" — that was the original design, but backtesting it (see
+   the EDA section below) found a team's own early-season ratio only weakly predicts its
+   future ratio, and heavy shrinkage is warranted even with a full season of data. The weight
+   uses `n / (n + 63)`, fit directly to the measured relationship — at 6 played weeks that's a
+   weight of ~0.09, not 1.0. Weekly volatility (std dev) is likewise estimated from the
+   residuals between actual scores and this week-specific baseline, falling back to an
+   empirically-derived default (see next) until there's enough data.
 6. **Weekly volatility (floor/ceiling) grounded in real history AND real roster
    composition, not a guess** — `src/historical.py` pulls the last 3 completed seasons of
    *actual* results (same undocumented Sleeper endpoint family, same scoring function) and
@@ -120,6 +122,40 @@ results, not just asserts them. Findings from the run that shaped the current co
   at 4.3 pts/week (genuinely replacement level) vs. rank 40's 8.1 — lowered to 40. QB/WR/TE/
   K/DEF cutoffs already landed in defensible territory and were left as-is.
 
+`src/eda_assumptions_2.py` went further, checking things the first pass didn't:
+
+- **Rotowire's own projection bias**: backtested projected vs. actual for the same
+  player/week across 3 seasons. RB/WR/TE are systematically over-projected, and
+  *consistently* so — negative in all 3 years individually (RB: -1.79/-0.90/-1.09, WR:
+  -1.67/-1.12/-1.20, TE: -0.91/-0.65/-0.54), not one anomalous season. QB/K/DEF showed no
+  consistent-direction bias (sign flipped year to year) and are deliberately left uncorrected
+  — see `projections.BIAS_CORRECTION`.
+- **Is a PLAYER's own projection bias a stable trait worth correcting individually?** No —
+  tested and rejected. Split-half reliability of an individual player's own bias was
+  essentially zero (r=-0.08 to +0.01, all p>0.29) at every sample size, and a between/within
+  variance decomposition showed over 96% of it is week-to-week noise. The position-level
+  correction is the *statistically correct* granularity here, not a cruder stand-in for a
+  better per-player one — going finer actively fits noise.
+- **Does the ratio-calibration mechanism (step 5) actually work?** Partially, and much less
+  than the original design assumed. Regressing (future-season ratio) on (known ratio through
+  week N), for this league's 14 rosters replayed against 3 real seasons (n=42 team-seasons):
+  the correlation is consistently positive at every split tested (2 through 12 weeks) — a
+  real signal, unlike the per-player bias case — but weak (empirical optimal weight was only
+  0.126 at week 6, never exceeding ~0.19 at any split). The mechanism's existence is
+  evidence-backed; its original shrinkage schedule (full trust by week 6) was not, and has
+  been replaced with `n/(n+63)`, fit directly to the measured slopes — see
+  `strength.RATIO_SHRINKAGE_N0`.
+- **Scoring engine sanity**: only 1 of 61 nonzero scoring rules never fired in-sample
+  (`fgmiss_0_19` — legitimately rare), and custom league-scoring differs from Sleeper's
+  generic half-PPR by +0.83 on average, confirming the custom-scoring step does real work.
+- **QB-WR2 correlation**: checked whether applying the QB-WR1 stack constant to a second
+  same-team pass-catcher overstates it. It doesn't — QB-WR2 measured r=0.194, if anything
+  slightly higher than WR1's 0.174.
+- **Multi-season position-volatility stability**: reasonably stable year to year (no
+  meaningful drift), supporting the choice to pool 3 seasons rather than use just one. K
+  showed more year-to-year swing (2.95-4.20) than other positions, worth noting but not acted
+  on.
+
 ## Usage
 
 ```bash
@@ -146,9 +182,10 @@ Output: a results table printed to console, and a CSV at `output/season_sim_<lea
   results (per-player, rookie-class, and position-average tiers), scored with the same
   scoring function as projections. Also adds the measured QB+pass-catcher same-team
   stack covariance (see EDA below) on top of the naive independent-slots sum.
-- `src/eda_assumptions.py` — checks the model's own assumptions against real historical
-  data (teammate independence, Normality of team scores, per-player std reliability,
-  position pool cliffs). Run it directly any time to re-validate after a data refresh.
+- `src/eda_assumptions.py` / `src/eda_assumptions_2.py` — checks the model's own assumptions
+  against real historical data (teammate independence, Normality of team scores, per-player
+  std reliability, position pool cliffs, projection bias, ratio-calibration signal strength).
+  Run either directly any time to re-validate after a data refresh.
 - `src/strength.py` — optimal lineup construction per week (returns WHO was picked, not
   just the total, so historical.py can price that specific lineup's volatility), and the
   actual-vs-projected team calibration (ratio + residual std).
@@ -158,7 +195,15 @@ Output: a results table printed to console, and a CSV at `output/season_sim_<lea
 ## Known simplifications
 
 - Projections come from a single source (Rotowire, via Sleeper's feed) — no ensembling
-  across multiple projection systems.
+  across multiple projection systems. (Considered adding ESPN as a second source; its API
+  is reachable but the useful player-pool endpoint requires ESPN auth cookies plus a stat-ID
+  mapping table to rescoring against this league's rules — real effort with an uncertain
+  payoff, so shelved. FantasyPros' API is real and well-documented but requires a paid HOF
+  subscription, ~$108/year, for anything beyond sample data.)
+- The `weight` from `calibrate_team_ratio` (mean-side shrinkage) is also reused by main.py
+  to blend std dev (own residual std vs. roster-composition std). Only the mean side has been
+  backtested — reusing the same schedule for std is an unvalidated assumption, not a
+  deliberate finding.
 - The empirical volatility model pools the last 3 seasons per player, but still can't
   reflect scoring-rule changes this season that didn't exist historically, and averages a
   player's own year-to-year level shifts away (each season's residuals are measured
