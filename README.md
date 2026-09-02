@@ -40,6 +40,21 @@ League: **David's Yard Restoration PAC** (Sleeper league `1392633709420646400`, 
    then the championship).
 8. Aggregate across all simulations into playoff / bye / championship odds per team.
 
+### Bye weeks and streaming DEF/K
+
+- **Bye weeks fall out for free.** A player has no projection entry at all for a week
+  they're on bye, so they're worth 0 in that week's optimal-lineup calculation and simply
+  won't be started. This assumes a manager always sets an optimal lineup -- it doesn't
+  penalize anyone for forgetting to bench a bye-week player.
+- **DEF/K streaming is modeled as a shared league-wide ceiling.** For every *future* week,
+  every team's lineup optimizer is allowed to swap in the best true free-agent DEF/K
+  leaguewide (not rostered by anyone) if it beats what that team actually has rostered.
+  This approximates "a reasonably active manager streams the position" without simulating
+  14 teams competing over the same one streamer -- so it's an optimistic shared ceiling,
+  not a fight over scarce adds. It is intentionally *not* applied when calibrating a team
+  against its actual past results, so that calibration stays honest about what a team's
+  real roster actually scored.
+
 ## Usage
 
 ```bash
@@ -76,6 +91,7 @@ Output: a results table printed to console, and a CSV at `output/season_sim_<lea
   Rotowire already bakes into its stat-line projections).
 - In-season roster moves (waivers/trades) are only reflected once re-fetched — a run always
   uses each team's *current* roster, including retroactively for past-week calibration.
+- DEF/K streaming ceiling is shared across all teams (no contention modeling) — see above.
 - Sleeper's own `winners_bracket` endpoint is ignored pre-playoffs — its seeds are just
   a placeholder until the regular season actually finishes, so seeding is computed here
   from simulated final standings instead.

@@ -16,8 +16,18 @@ Two stages:
    own matchup-specific projections gets adjusted, not just blended against a
    flat preseason average. Weekly volatility (std dev) is likewise estimated
    from the residuals between actual scores and this week-specific baseline.
+
+3. Streaming (DEF/K only): future-week projections assume a team can replace its
+   rostered DEF/K with the best true free agent at that position leaguewide, if
+   that's better than what they have rostered -- approximating a manager who
+   streams the position rather than assuming a static roster all season. This is
+   a shared ceiling available to every team (it does NOT model 14 teams competing
+   for the same one streamer), and it is NOT applied retroactively, so the
+   actual-vs-projected calibration in stage 2 stays honest about each team's real
+   roster.
 """
 import math
+from collections import ChainMap
 
 import projections
 
@@ -74,8 +84,53 @@ def project_all_weeks(season: str, weeks: list, scoring_settings: dict) -> dict:
     return {week: projections.week_player_points(season, week, scoring_settings) for week in weeks}
 
 
-def team_week_projection(team_players: list, week_points: dict, position_lookup: dict, slot_req: dict) -> float:
-    return best_lineup_points(team_players, week_points, position_lookup, slot_req)
+STREAMABLE_POSITIONS = ("DEF", "K")
+
+
+def rostered_player_ids(teams: dict) -> set:
+    """All player_ids on any roster in the league -- i.e. NOT available to stream."""
+    return {pid for team in teams.values() for pid in team.players}
+
+
+def position_id_list(position_lookup: dict, position: str) -> list:
+    return [pid for pid, pos in position_lookup.items() if pos == position]
+
+
+def streaming_ceiling(week_points: dict, candidate_ids: list, rostered_ids: set) -> float:
+    """Best projected points among true free agents at this position, for one week."""
+    best = 0.0
+    for pid in candidate_ids:
+        if pid in rostered_ids:
+            continue
+        pts = week_points.get(pid)
+        if pts is not None and pts > best:
+            best = pts
+    return best
+
+
+def team_week_projection(
+    team_players: list, week_points: dict, position_lookup: dict, slot_req: dict,
+    stream_ceilings: dict = None,
+) -> float:
+    """stream_ceilings, if given: {'DEF': best_free_agent_points, 'K': ...} -- lets the
+    lineup optimizer swap in a hypothetical streamed replacement if it beats what's
+    actually rostered. Uses ChainMap so we never copy the full (huge) points/position
+    lookups just to add a couple of synthetic entries.
+    """
+    if not stream_ceilings:
+        return best_lineup_points(team_players, week_points, position_lookup, slot_req)
+
+    extra_points, extra_positions, synthetic_ids = {}, {}, []
+    for pos, ceiling in stream_ceilings.items():
+        sid = f"__stream_{pos}__"
+        extra_points[sid] = ceiling
+        extra_positions[sid] = pos
+        synthetic_ids.append(sid)
+
+    player_ids = list(team_players) + synthetic_ids
+    points_by_pid = ChainMap(extra_points, week_points)
+    position_by_pid = ChainMap(extra_positions, position_lookup)
+    return best_lineup_points(player_ids, points_by_pid, position_by_pid, slot_req)
 
 
 def calibrate_team(team, retro_projection_by_week: dict):

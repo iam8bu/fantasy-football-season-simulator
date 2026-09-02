@@ -62,6 +62,17 @@ def main():
     print(f"Pulling real per-player projections for weeks {weeks_needed} (this may take a moment) ...")
     week_points = strength.project_all_weeks(season, weeks_needed, scoring_settings)
 
+    # Streaming ceiling (DEF/K): best true free agent at that position leaguewide, per
+    # future week. Shared across all teams; NOT applied to past weeks (calibration below
+    # should reflect what each team's real roster actually scored, not a hypothetical).
+    all_rostered = strength.rostered_player_ids(teams)
+    candidate_ids = {pos: strength.position_id_list(position_lookup, pos) for pos in strength.STREAMABLE_POSITIONS}
+    stream_ceilings_by_week = {
+        w: {pos: strength.streaming_ceiling(week_points[w], candidate_ids[pos], all_rostered)
+            for pos in strength.STREAMABLE_POSITIONS}
+        for w in remaining_weeks + playoff_weeks
+    }
+
     team_week_means = {}
     team_std = {}
     for rid, team in teams.items():
@@ -76,7 +87,10 @@ def main():
 
         means = {}
         for w in remaining_weeks + playoff_weeks:
-            base = strength.team_week_projection(team.players, week_points[w], position_lookup, slot_req)
+            base = strength.team_week_projection(
+                team.players, week_points[w], position_lookup, slot_req,
+                stream_ceilings=stream_ceilings_by_week[w],
+            )
             means[w] = base * ratio
         team_week_means[rid] = means
 
