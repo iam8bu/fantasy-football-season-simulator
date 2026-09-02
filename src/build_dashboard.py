@@ -86,7 +86,7 @@ header h1 span { color: var(--green); }
 .tourn-table td:nth-child(2) { text-align: left; white-space: nowrap; }
 .tourn-table tr:last-child td { border-bottom: none; }
 .tourn-table tbody tr:hover td { background: var(--surface2) !important; }
-.record-sub { color: var(--muted); font-size: 11px; }
+.record-inline { color: var(--muted); font-weight: 400; font-size: 12px; }
 
 .playoff-line td { padding: 0; border-bottom: none; }
 .playoff-line .line-inner {
@@ -136,15 +136,12 @@ def build_html(data: dict) -> str:
 
     body_rows = []
     for i, t in enumerate(rows_sorted, start=1):
-        name_cell = (
-            f'<div>{esc(t["team"])}</div>'
-            f'<div class="record-sub">{esc(t["record"])} actual &bull; '
-            f'{t["avg_final_wins"]:.1f} avg wins</div>'
-        )
+        name_cell = f'{esc(t["team"])} <span class="record-inline">({esc(t["record"])})</span>'
         body_rows.append(
             "<tr>"
             f"<td>{i}</td>"
             f"<td>{name_cell}</td>"
+            f'<td>{t["avg_final_wins"]:.1f}</td>'
             f'<td{heat_bg(t["playoff_pct"], max_playoff, "green")}>{t["playoff_pct"]:.1f}%</td>'
             f'<td{heat_bg(t["bye_pct"], max_bye, "green")}>{t["bye_pct"]:.1f}%</td>'
             f'<td{heat_bg(t["champ_pct"], max_champ, "gold")}>{t["champ_pct"]:.1f}%</td>'
@@ -153,7 +150,7 @@ def build_html(data: dict) -> str:
         )
         if i == playoff_teams:
             body_rows.append(
-                '<tr class="playoff-line"><td colspan="6"><div class="line-inner">'
+                '<tr class="playoff-line"><td colspan="7"><div class="line-inner">'
                 '<div class="rule"></div><div class="label">Playoff line</div><div class="rule"></div>'
                 "</div></td></tr>"
             )
@@ -166,9 +163,8 @@ def build_html(data: dict) -> str:
         f"<style>{CSS}</style>",
         "</head><body>",
         "<header>",
-        f'<h1>&#127944; {esc(league_name)} <span>&mdash; Playoff Odds</span></h1>',
-        '<p class="subtitle">Every team\'s championship odds, simulated '
-        f'{n_sims:,} times from real weekly player projections and this league\'s exact scoring rules.</p>',
+        f'<h1>{esc(league_name)} <span>&mdash; Playoff Odds</span></h1>',
+        f'<p class="subtitle">Based on {n_sims:,} simulations of the season.</p>',
         f'<p class="updated">Last updated {esc(generated)}</p>',
         "</header>",
         '<div class="tourn-wrap">',
@@ -176,17 +172,18 @@ def build_html(data: dict) -> str:
         '<table id="tourn-table" class="tourn-table"><thead><tr>',
         '<th onclick="sortTourn(0)" data-col="0">#</th>',
         '<th onclick="sortTourn(1)" data-col="1">Team</th>',
-        '<th onclick="sortTourn(2)" data-col="2">Make Playoffs</th>',
-        '<th onclick="sortTourn(3)" data-col="3">1st-Round Bye</th>',
-        '<th onclick="sortTourn(4)" data-col="4" class="sort-active">Win It All &#8595;</th>',
-        '<th onclick="sortTourn(5)" data-col="5">Last Place</th>',
+        '<th onclick="sortTourn(2)" data-col="2" class="sort-active">Proj. Wins &#8595;</th>',
+        '<th onclick="sortTourn(3)" data-col="3">Make Playoffs</th>',
+        '<th onclick="sortTourn(4)" data-col="4">1st-Round Bye</th>',
+        '<th onclick="sortTourn(5)" data-col="5">Champion</th>',
+        '<th onclick="sortTourn(6)" data-col="6">Last Place</th>',
         "</tr></thead><tbody>",
         "".join(body_rows),
         "</tbody></table>",
         "</div>",
         "</div>",
         "<script>",
-        "var _tDir=-1,_tCol=4;",
+        "var _tDir=-1,_tCol=2;",
         "function sortTourn(col){",
         'var tbl=document.getElementById("tourn-table");',
         'var tbody=tbl.querySelector("tbody");',
