@@ -29,16 +29,27 @@ League: **David's Yard Restoration PAC** (Sleeper league `1392633709420646400`, 
    team's future-week projections — so a team over/under-performing its own matchup-specific
    projections gets adjusted, not just blended against a flat preseason average. Weekly
    volatility (std dev) is likewise estimated from the residuals between actual scores and
-   this week-specific baseline, falling back to a league-wide default until there's enough
-   data.
-6. **Simulate the rest of the season** thousands of times: for every remaining week, each
+   this week-specific baseline, falling back to an empirically-derived default (see next)
+   until there's enough data.
+6. **Weekly volatility (floor/ceiling) grounded in real history, not a guess** — before any
+   games are played (and to shrink toward before a team has ~6 of its own), the model needs
+   a default std dev. Rather than an arbitrary constant, `src/historical.py` pulls a full
+   past season's *actual* results (same undocumented Sleeper endpoint family, same scoring
+   function) and measures how much a real "startable" player at each position varies week to
+   week around their own season average. Those per-position volatilities are combined into
+   one team-level std via error propagation over the league's actual starting slots
+   (`Var(sum of slots) = sum of slot variances`, FLEX = average of RB/WR/TE). Bye weeks are
+   excluded from this calc (a predictable mean-shift, not week-to-week randomness) so they
+   don't inflate it artificially.
+7. **Simulate the rest of the season** thousands of times: for every remaining week, each
    team's score is drawn from a normal distribution centered on that week's calibrated
-   projection, matchups are scored against the real schedule, and final regular-season
-   standings are tallied (ties broken by total points, matching Sleeper's default).
-7. **Simulate the playoff bracket** each run using the same per-week projections for weeks
+   projection, with that team's std dev (see above), matchups are scored against the real
+   schedule, and final regular-season standings are tallied (ties broken by total points,
+   matching Sleeper's default).
+8. **Simulate the playoff bracket** each run using the same per-week projections for weeks
    14-16 (standard 6-team format: top 2 seeds bye, 3v6 / 4v5 in round 1, reseeded round 2,
    then the championship).
-8. Aggregate across all simulations into playoff / bye / championship odds per team.
+9. Aggregate across all simulations into playoff / bye / championship odds per team.
 
 ### Bye weeks and streaming
 
@@ -57,6 +68,16 @@ League: **David's Yard Restoration PAC** (Sleeper league `1392633709420646400`, 
   to the same top streamer (no simulation of 14 teams competing for one waiver claim), and
   it is never applied retroactively, so the actual-vs-projected calibration above stays
   honest about what each team's real roster actually scored.
+
+### Randomness model
+
+Every remaining week and every playoff game, a team's score is one independent draw:
+`score = clip(Normal(week_mean, team_std), min=0)`. `week_mean` is the calibrated,
+week-specific projection from steps 2-5 above; `team_std` is the calibrated volatility
+from step 6, which is a *single number per team*, reused for every remaining week
+including playoffs — it does not (yet) vary by which specific players are in a given
+week's optimal lineup, and the draw is a symmetric Normal rather than the real
+right-skewed shape of fantasy scoring. See Known simplifications.
 
 ## Usage
 
@@ -80,6 +101,8 @@ Output: a results table printed to console, and a CSV at `output/season_sim_<lea
 - `src/league.py` — assembles teams/rosters/schedule/results into a clean `Team` model.
 - `src/projections.py` — real per-player weekly stat-line projections, scored against the
   league's own scoring rules.
+- `src/historical.py` — empirical weekly-volatility estimate from a past season's real
+  results, scored with the same scoring function, used as the default std dev.
 - `src/strength.py` — optimal lineup construction per week, and the actual-vs-projected
   team calibration (ratio + residual std).
 - `src/simulate.py` — the Monte Carlo season + playoff bracket simulator (numpy).
@@ -89,9 +112,17 @@ Output: a results table printed to console, and a CSV at `output/season_sim_<lea
 
 - Projections come from a single source (Rotowire, via Sleeper's feed) — no ensembling
   across multiple projection systems.
+- The empirical volatility estimate uses one past season (default: the prior year) — a
+  single sample of "what a typical starter's week-to-week swing looks like," not an
+  average across multiple years, and it doesn't yet adapt per-team to actual roster
+  composition (a team of high-ceiling boom/bust players and a team of steady floor players
+  with the same projected mean currently get the same std dev, aside from the ratio-based
+  calibration once real results come in). It also can't reflect scoring-rule changes this
+  season that didn't exist last season.
 - Weekly scores are sampled independently (no positional correlation across a team's own
   players, e.g. same-game stacks; no explicit game-script/weather modeling beyond whatever
-  Rotowire already bakes into its stat-line projections).
+  Rotowire already bakes into its stat-line projections), and drawn from a symmetric Normal
+  rather than fantasy scoring's real right-skewed shape.
 - In-season roster moves (waivers/trades) are only reflected once re-fetched — a run always
   uses each team's *current* roster, including retroactively for past-week calibration.
 - Streaming ceiling is shared across all teams (no waiver-contention modeling) — see above.

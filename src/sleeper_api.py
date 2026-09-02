@@ -84,6 +84,17 @@ def get_research(season: str, week: int):
     return _cached(DATA_DIR / f"research_{season}_wk{week}.json", fn, max_age_seconds=24 * 3600)
 
 
+def get_stats(season: str, week: int):
+    """Real per-player weekly ACTUAL stat lines (final results, not projections).
+
+    Same taxonomy/shape as get_projections, so the same scoring function works on
+    both. Used to empirically calibrate variance from real history rather than
+    guessing -- past-season results never change, so cache indefinitely.
+    """
+    fn = lambda: _get(f"{BASE.replace('/v1', '')}/stats/nfl/{season}/{week}?season_type=regular")
+    return _cached(DATA_DIR / f"stats_{season}_wk{week}.json", fn, max_age_seconds=None)
+
+
 def get_projections(season: str, week: int):
     """Real per-player weekly projections (stat-line level, Rotowire via Sleeper).
 

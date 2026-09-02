@@ -11,6 +11,7 @@ import sleeper_api as api
 import league as league_mod
 import strength
 import simulate
+import historical
 
 DEFAULT_LEAGUE_ID = "1392633709420646400"
 OUT_DIR = Path(__file__).resolve().parent.parent / "output"
@@ -53,6 +54,17 @@ def main():
     position_lookup = strength.build_position_lookup(players_db)
     scoring_settings = league["scoring_settings"]
 
+    print("Estimating weekly volatility from last season's real results ...")
+    prev_season = str(int(season) - 1)
+    pos_std = historical.estimate_position_std(prev_season, list(range(1, 18)), scoring_settings, position_lookup)
+    print(f"  Empirical per-position weekly std ({prev_season}): "
+          + ", ".join(f"{pos}={round(std, 1)}" for pos, std in pos_std.items()))
+    fallback_std = historical.composite_lineup_std(slot_req, pos_std)
+    if not fallback_std or fallback_std < 5:
+        print(f"  WARNING: composite std ({fallback_std}) looks off, falling back to flat default.")
+        fallback_std = strength.LEAGUE_FALLBACK_STD
+    print(f"  Composite team-level weekly std: {round(fallback_std, 1)} (replaces flat {strength.LEAGUE_FALLBACK_STD} guess)")
+
     played_weeks = list(range(1, current_week))
     remaining_weeks = list(range(current_week, regular_season_weeks + 1))
     playoff_rounds = simulate.playoff_round_count(playoff_teams)
@@ -80,9 +92,9 @@ def main():
             w: strength.team_week_projection(team.players, week_points[w], position_lookup, slot_req)
             for w in played_weeks
         }
-        ratio, std = strength.calibrate_team(team, retro_by_week)
+        ratio, std = strength.calibrate_team(team, retro_by_week, fallback_std=fallback_std)
         if std is None:
-            std = strength.LEAGUE_FALLBACK_STD
+            std = fallback_std
         team_std[rid] = std
 
         means = {}

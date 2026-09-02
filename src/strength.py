@@ -28,6 +28,11 @@ Two stages:
    competing for the same one streamer), and it is NOT applied retroactively, so
    the actual-vs-projected calibration in stage 2 stays honest about each team's
    real roster.
+
+The LEAGUE_FALLBACK_STD constant below is only a last-resort default (used if
+main.py doesn't supply a real one). In practice main.py computes an empirically
+grounded fallback from a past season's actual results -- see historical.py --
+and passes it into calibrate_team() instead of relying on this guess.
 """
 import math
 
@@ -132,15 +137,20 @@ def team_week_projection(
     return best_lineup_points(team_players, week_points, position_lookup, slot_req, stream_ceilings)
 
 
-def calibrate_team(team, retro_projection_by_week: dict):
+def calibrate_team(team, retro_projection_by_week: dict, fallback_std: float = LEAGUE_FALLBACK_STD):
     """Compare a team's actual scores so far to this engine's own retroactive
     projection for those same weeks, and return (ratio, std) for scaling/spreading
     future-week base projections.
+
+    fallback_std: used both pre-season (no played weeks yet) and to shrink toward
+    before a team has enough of its own played weeks to trust. Pass the empirically
+    derived composite from historical.py rather than the flat module default when
+    available -- see main.py.
     """
     played_weeks = [w for w in team.weekly_scores if w in retro_projection_by_week]
     n = len(played_weeks)
     if n == 0:
-        return 1.0, None  # no data yet -- caller falls back to league default std
+        return 1.0, None  # no data yet -- caller falls back to fallback_std
 
     actual = [team.weekly_scores[w] for w in played_weeks]
     proj = [retro_projection_by_week[w] for w in played_weeks]
@@ -157,10 +167,10 @@ def calibrate_team(team, retro_projection_by_week: dict):
         residuals = [a - p for a, p in zip(actual, proj)]
         mean_resid = sum(residuals) / n
         var = sum((r - mean_resid) ** 2 for r in residuals) / (n - 1)
-        std = math.sqrt(var) if var > 0 else LEAGUE_FALLBACK_STD
+        std = math.sqrt(var) if var > 0 else fallback_std
     else:
-        std = LEAGUE_FALLBACK_STD
+        std = fallback_std
 
-    # Blend toward the league fallback until there's a real sample to trust.
-    std = weight * std + (1 - weight) * LEAGUE_FALLBACK_STD
+    # Blend toward the fallback until there's a real sample to trust.
+    std = weight * std + (1 - weight) * fallback_std
     return ratio, max(std, 8.0)
