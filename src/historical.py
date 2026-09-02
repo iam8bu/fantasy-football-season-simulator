@@ -27,17 +27,28 @@ import sleeper_api as api
 HISTORY_SEASONS_BACK = 3      # pool this many past completed seasons per player
 MIN_GAMES_PER_SEASON = 3      # ignore a player-season with fewer real games than this
 
-# Split-half reliability of a player's own pooled std, measured via eda_assumptions.py:
-# 0.850 at 10-19 games, 0.850 at 20-29, 0.886 at 30+ -- reliability is already high well
-# before 24 games, so full trust at 15 is evidence-based, not just a rounder number.
-FULL_TRUST_GAMES = 15
+# How much should a specific player's own measured std replace the position average?
+# Originally a flat ramp-to-100%-trust by 15 games, based on split-half reliability
+# that looked deceptively high (0.85-0.89). That reliability was itself an artifact of
+# a real bug: an injured/inactive player still on an active roster can get a stats
+# entry with NO actual counting stats (metadata/rank sentinels only), which scored as
+# a false 0 and inflated apparent volatility -- and did so *consistently* across both
+# halves of a split-half test (the same injury stretch shows up in both), making the
+# contamination look like real, reliable signal. Fixed at the source (see
+# week_player_actuals), then re-measured properly: a chronological forecast test
+# (first N games predicting a held-out future sample, same technique as
+# strength.RATIO_SHRINKAGE_N0/STD_SHRINKAGE_N0) gives weight 0.39 at 6 games, only
+# ~0.53-0.68 out to 20-30 games -- nowhere near full trust, and not remotely reached
+# by 15 games. Fit to weight(n) = n/(n+n0), n0=10.5.
+PLAYER_STD_SHRINKAGE_N0 = 10.5
 
 # "Startable" pool sizes for a 14-team league (starters + streaming candidates) --
 # big enough to be a stable sample, small enough to exclude scrubs whose one-game
 # noise isn't representative of a real starter's volatility. Set from the rank-vs-
-# average-points cliff measured in eda_assumptions.py: e.g. RB was previously 60,
-# but rank 60 averages just 4.3 pts/week (replacement level) vs rank 40's 8.1 --
-# 60 was diluting "typical starter" volatility with committee/deep-bench players.
+# average-points cliff (re-measured after the injury-zero fix above, which shifted
+# these values upward across the board -- e.g. RB #40 moved from 8.1 to 9.1 pts/wk --
+# but not enough to change the underlying conclusion): RB #60 sits at ~6.0 pts/wk
+# vs #40's ~9.1, still a real ~33% cliff, so 40 remains the right cutoff.
 DEFAULT_POOL_SIZE = {"QB": 24, "RB": 40, "WR": 72, "TE": 24, "K": 24, "DEF": 24}
 
 # Same idea, scaled to how many rookies are actually fantasy-relevant in a given
@@ -50,15 +61,18 @@ ROOKIE_POOL_SIZE = {"QB": 8, "RB": 20, "WR": 24, "TE": 10}
 # these are simply this session's measured 2025-only values, not re-derived live.
 HARDCODED_FALLBACK_STD = {"QB": 8.6, "RB": 7.5, "WR": 7.0, "TE": 6.7, "K": 3.6, "DEF": 5.7}
 
-# Same-real-NFL-team QB + pass-catcher correlation, measured via eda_assumptions.py
-# (Pearson r on weekly points, same weeks, 3 seasons, ~81-83 team-seasons each,
-# p=.0001 and p=.003 respectively -- real and significant, unlike WR-WR or QB-RB
-# pairs which showed no significant correlation). Used to add the covariance term
-# Var(sum) actually requires (Var(sum) = sum(Var) + 2*sum(Cov)) whenever a team's
-# optimal lineup includes their real QB alongside their real WR1/TE1 from the same
-# NFL team -- a same-game "stack" effect the naive independence assumption misses.
-QB_WR_STACK_CORR = 0.174
-QB_TE_STACK_CORR = 0.120
+# Same-real-NFL-team QB + pass-catcher correlation, measured via eda_assumptions.py,
+# re-measured after the injury-zero fix above (n=92 team-seasons, p<.0001 both):
+# QB-WR1 0.174 -> 0.389, QB-TE1 0.120 -> 0.322 -- both roughly DOUBLED. The original
+# numbers were themselves diluted by the same bug: an injured QB's phantom 0.0 paired
+# against his real (nonzero) pass-catcher's score that week looked like anti-
+# correlation, masking how strong the true relationship is. Used to add the
+# covariance term Var(sum) actually requires (Var(sum) = sum(Var) + 2*sum(Cov))
+# whenever a team's optimal lineup includes their real QB alongside their real
+# WR1/TE1 from the same NFL team -- a same-game "stack" effect the naive
+# independence assumption misses.
+QB_WR_STACK_CORR = 0.389
+QB_TE_STACK_CORR = 0.322
 
 ROOKIE_ELIGIBLE_POSITIONS = ("QB", "RB", "WR", "TE")  # K/DEF have no meaningful "rookie" volatility distinction
 
@@ -200,7 +214,7 @@ def effective_std(pid: str, pos: str, model: dict, players_db: dict, current_sea
     own = model["player_std"].get(pid)
     if own:
         own_std, own_n = own
-        weight = min(own_n / FULL_TRUST_GAMES, 1.0)
+        weight = own_n / (own_n + PLAYER_STD_SHRINKAGE_N0)
         return weight * own_std + (1 - weight) * position_avg
 
     player = players_db.get(pid, {})

@@ -106,19 +106,21 @@ results, not just asserts them. Findings from the run that shaped the current co
 - **Teammate independence** (the `Var(sum) = sum(Var)` assumption): mostly holds. WR1-WR2
   and QB-RB1 pairs (same real NFL team) showed no significant correlation, and committee
   RB1-RB2 pairs were slightly *negatively* correlated (touch-share tradeoffs). But
-  **QB-WR1 (r=0.174, p=.0001) and QB-TE1 (r=0.120, p=.003) same-team correlations are real**
-  — a genuine same-game "stack" effect. `lineup_std_from_picks` now adds the corresponding
-  covariance term whenever a lineup's real QB and real WR1/TE1 share an actual NFL team,
-  rather than treating them as independent.
+  **QB-WR1 and QB-TE1 same-team correlations are real** — a genuine same-game "stack"
+  effect. `lineup_std_from_picks` adds the corresponding covariance term whenever a
+  lineup's real QB and real WR1/TE1 share an actual NFL team, rather than treating them as
+  independent. (Originally measured at r=0.174/0.120 — see the correction note near the
+  bottom of this section for why those numbers roughly doubled on a later re-check.)
 - **Normality of team-level scores**: strongly holds. Replaying this league's 14 current
   rosters against 3 real seasons (51 weeks each), every single team passed a Shapiro-Wilk
   normality test, with low skew and slightly negative excess kurtosis (if anything,
   thinner-tailed than Normal). The individual-player skew that's real at the player level
   washes out once ~9 players are summed into a team score (Central Limit Theorem) — good
   support for the Normal-draw sampling model.
-- **`FULL_TRUST_GAMES`**: split-half reliability of a player's own pooled std was already
-  0.850 at just 10-19 games, barely improving to 0.886 at 30+. The old value of 24 was more
-  conservative than the data supports; lowered to 15.
+- **Per-player std shrinkage** (`historical.PLAYER_STD_SHRINKAGE_N0`): split-half reliability
+  of a player's own pooled std looked artificially high at first pass (0.850 at 10-19 games,
+  0.886 at 30+) — see the correction note below for why that was itself contaminated and got
+  re-measured much lower.
 - **`DEFAULT_POOL_SIZE`**: at the position's rank cutoff, average points should still look
   like a real "startable" player, not a replacement-level one. RB's old cutoff of 60 landed
   at 4.3 pts/week (genuinely replacement level) vs. rank 40's 8.1 — lowered to 40. QB/WR/TE/
@@ -127,11 +129,13 @@ results, not just asserts them. Findings from the run that shaped the current co
 `src/eda_assumptions_2.py` went further, checking things the first pass didn't:
 
 - **Rotowire's own projection bias**: backtested projected vs. actual for the same
-  player/week across 3 seasons. RB/WR/TE are systematically over-projected, and
-  *consistently* so — negative in all 3 years individually (RB: -1.79/-0.90/-1.09, WR:
-  -1.67/-1.12/-1.20, TE: -0.91/-0.65/-0.54), not one anomalous season. QB/K/DEF showed no
-  consistent-direction bias (sign flipped year to year) and are deliberately left uncorrected
-  — see `projections.BIAS_CORRECTION`.
+  player/week across 3 seasons. RB and WR are systematically over-projected, consistently
+  negative in all 3 years individually (magnitudes revised down somewhat on the later
+  re-check below). **TE's finding did not survive the re-check** — flipped to near-zero
+  or slightly positive in 2 of 3 years once measured correctly. QB/K/DEF showed no
+  consistent-direction bias either way. No code ever implemented a correction for any of
+  this (the decision was to let the ratio-calibration mechanism absorb it instead), so
+  this was a correction to the record, not to any active code path.
 - **Is a PLAYER's own projection bias a stable trait worth correcting individually?** No —
   tested and rejected. Split-half reliability of an individual player's own bias was
   essentially zero (r=-0.08 to +0.01, all p>0.29) at every sample size, and a between/within
@@ -152,21 +156,50 @@ results, not just asserts them. Findings from the run that shaped the current co
   than its ratio) and the two behave differently enough to need their own constant. The
   std-side signal is actually *stronger*: weeks 2-4 show a fragile, near-zero-to-negative
   relationship (too little data for a variance estimate to mean anything), but from week 5
-  on it's real and grows faster than the ratio's — 0.32 at week 8, 0.50 at week 12, roughly
-  double the ratio's weight at the same weeks. Makes sense: a roster's volatility *level*
-  (built on boom/bust players or not) is a structural property that persists, while its
-  directional luck is more transient. Fit separately as `n/(n+27)` — see
-  `strength.STD_SHRINKAGE_N0`.
+  on it's real and grows faster than the ratio's, roughly double the ratio's weight at the
+  same weeks. Makes sense: a roster's volatility *level* (built on boom/bust players or
+  not) is a structural property that persists, while its directional luck is more
+  transient. Fit as `n/(n+n0)` — see `strength.STD_SHRINKAGE_N0` (re-measured on the later
+  correction below; moved modestly, 26.7 -> 22.5). The `RATIO_SHRINKAGE_N0` backtest, by
+  contrast, came back byte-for-byte identical on re-check — the optimal-lineup selector
+  already benches a zero-value player either way, so it's insensitive to the bug that
+  affected everything else here.
 - **Scoring engine sanity**: only 1 of 61 nonzero scoring rules never fired in-sample
   (`fgmiss_0_19` — legitimately rare), and custom league-scoring differs from Sleeper's
   generic half-PPR by +0.83 on average, confirming the custom-scoring step does real work.
 - **QB-WR2 correlation**: checked whether applying the QB-WR1 stack constant to a second
-  same-team pass-catcher overstates it. It doesn't — QB-WR2 measured r=0.194, if anything
-  slightly higher than WR1's 0.174.
+  same-team pass-catcher overstates it. It doesn't — QB-WR2 tracks closely with QB-WR1 (both
+  moved up together on the later re-check), so the shared constant remains fine to use for
+  either.
 - **Multi-season position-volatility stability**: reasonably stable year to year (no
   meaningful drift), supporting the choice to pool 3 seasons rather than use just one. K
-  showed more year-to-year swing (2.95-4.20) than other positions, worth noting but not acted
-  on.
+  showed more year-to-year swing than other positions, worth noting but not acted on.
+
+**Correction (found while building a separate "which players are true bust risks" analysis,
+not through this EDA process itself):** an injured or inactive player still on an active
+roster — unlike a bye week, which omits them from the feed entirely — can get a stats entry
+with zero actual counting stats, just metadata and rank sentinels. That was scoring as a
+false 0.0 and getting counted as a real bad game everywhere this data feeds into: player-level
+std, position averages, rookie fallbacks, and every backtest above. Confirmed with a real
+case (Joe Burrow's 2025 IR stint; the stats entry for that week had literally zero keys
+overlapping the league's scoring rules, vs. his real played weeks which always had at least
+`pass_yd`/`pass_td`/`rush_yd`). Fixed at the source in both `historical.week_player_actuals`
+and `projections.week_player_points` (require at least one overlapping key before counting an
+entry as a real game), then every affected constant was re-measured rather than assumed fixed:
+
+| Constant | Before | After | What happened |
+|---|---|---|---|
+| `historical.QB_WR_STACK_CORR` | 0.174 | **0.389** | Roughly doubled — an injured QB's phantom 0.0 paired against his (real, nonzero) pass-catcher's score looked like anti-correlation, masking the true relationship |
+| `historical.QB_TE_STACK_CORR` | 0.120 | **0.322** | Same effect, roughly tripled |
+| Per-player std shrinkage | `min(n/15, 1.0)` (reaches 100% trust) | `n/(n+10.5)` (caps ~0.6-0.7 even at 30+ games) | The old reliability numbers were themselves inflated — the same injury stretch showing up "consistently" in both halves of a split-half test looked like real signal, not contamination. A proper chronological forecast test (first N games predicting a held-out future sample) put true reliability far lower |
+| `strength.STD_SHRINKAGE_N0` | 26.7 | 22.5 | Modest shift |
+| `strength.RATIO_SHRINKAGE_N0` | 63.0 | 63.0 (unchanged) | Confirmed insensitive to the bug — see above |
+| `historical.DEFAULT_POOL_SIZE` | (unchanged) | (unchanged) | Position-cliff values shifted up across the board (e.g. RB #40 moved 8.1 -> 9.1 pts/wk) but the cliff shape and conclusion held; not changed |
+| Rotowire projection bias (RB/WR/TE) | all three "systematically over-projected" | RB/WR bias real but smaller; **TE's finding did not survive** | See above |
+
+A full production run after all the fixes landed within noise of the pre-fix numbers (e.g.
+the favorite's championship odds moved from 29.0% to 28.8%) — reassuring that the model was
+never wildly wrong, just measurably less accurate on the specific mechanisms this bug touched.
 
 ## Usage
 
