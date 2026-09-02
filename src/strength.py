@@ -51,7 +51,9 @@ def best_lineup_points(
     stream_ceilings, if given: {'QB': best_free_agent_points, ...}. A required slot is
     only ever filled by this when NO rostered player at that position has a nonzero
     (i.e. non-bye/unprojected) value that week -- a real rostered starter who's playing
-    always wins over a hypothetical streamer, no matter the streamer's projection.
+    always wins over a hypothetical streamer, no matter the streamer's projection. Also
+    covers a team not rostering enough players at a position to fill the slot at all
+    (e.g. carrying zero kickers), not just a bye -- both leave the slot empty the same way.
     """
     by_pos = {pos: [] for pos in SLOT_POSITIONS}
     for pid in player_ids:
@@ -67,10 +69,13 @@ def best_lineup_points(
     for pos in SLOT_POSITIONS:
         n = slot_requirements.get(pos, 0)
         take = by_pos[pos][:n]
+        used[pos] = len(take)  # real rostered players consumed, for FLEX below -- unaffected by streaming
         if stream_ceilings and pos in stream_ceilings:
             take = [v if v > 0 else stream_ceilings[pos] for v in take]
+            deficit = n - len(take)   # roster doesn't even have enough players at this position at all
+            if deficit > 0:
+                take = take + [stream_ceilings[pos]] * deficit
         total += sum(take)
-        used[pos] = len(by_pos[pos][:n])
 
     flex_n = slot_requirements.get("FLEX", 0)
     remaining = []
