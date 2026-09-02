@@ -41,9 +41,9 @@ CSS = """
   --blue:      #2f81f7;
   --blue-dim:  rgba(47,129,247,.09);
   --blue-bdr:  rgba(47,129,247,.28);
-  --green:     #3fb950;
-  --green-dim: rgba(63,185,80,.09);
-  --green-bdr: rgba(63,185,80,.28);
+  --green:     #26a06a;
+  --green-dim: rgba(38,160,106,.09);
+  --green-bdr: rgba(38,160,106,.28);
   --amber:     #d29922;
   --amber-dim: rgba(210,153,34,.09);
   --amber-bdr: rgba(210,153,34,.28);
@@ -67,11 +67,6 @@ header {
   border-bottom: 1px solid var(--border);
   padding: 36px 32px 28px;
   text-align: center;
-}
-.header-eyebrow {
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 2.5px; text-transform: uppercase;
-  color: var(--blue); margin-bottom: 12px;
 }
 header h1 {
   font-size: clamp(1.6rem, 3.5vw, 2.4rem);
@@ -190,7 +185,7 @@ def heat_bg(val: float, max_val: float, cls: str) -> str:
     technique as the World Cup tournament table)."""
     if not val or max_val <= 0:
         return ""
-    color = {"green": "63,185,80", "amber": "210,153,34", "red": "248,81,73"}[cls]
+    color = {"green": "38,160,106", "amber": "210,153,34", "red": "248,81,73"}[cls]
     intensity = round((val / max_val) * 0.30, 3)  # capped well below opaque -- text stays readable
     return f' style="background:rgba({color},{intensity})"'
 
@@ -220,6 +215,7 @@ def build_html(data: dict) -> str:
     max_playoff = max((t["playoff_pct"] for t in teams), default=1) or 1
     max_bye = max((t["bye_pct"] for t in teams), default=1) or 1
     max_champ = max((t["champ_pct"] for t in teams), default=1) or 1
+    max_last = max((t["last_pct"] for t in teams), default=1) or 1
 
     rows_sorted = sorted(teams, key=lambda t: (-t["avg_final_wins"], -t["avg_final_pts"]))
 
@@ -241,11 +237,12 @@ def build_html(data: dict) -> str:
             f'<td{heat_bg(t["playoff_pct"], max_playoff, "green")}>{t["playoff_pct"]:.1f}%</td>'
             f'<td{heat_bg(t["bye_pct"], max_bye, "green")}>{t["bye_pct"]:.1f}%</td>'
             f'<td{heat_bg(t["champ_pct"], max_champ, "amber")}>{t["champ_pct"]:.1f}%</td>'
+            f'<td{heat_bg(t["last_pct"], max_last, "red")}>{t["last_pct"]:.1f}%</td>'
             "</tr>"
         )
         if i == playoff_teams:
             body_rows.append(
-                '<tr class="playoff-line"><td colspan="5"><div class="line-inner">'
+                '<tr class="playoff-line"><td colspan="6"><div class="line-inner">'
                 '<div class="rule"></div><div class="label">Playoff line</div><div class="rule"></div>'
                 "</div></td></tr>"
             )
@@ -266,7 +263,6 @@ def build_html(data: dict) -> str:
         f"<style>{CSS}</style>",
         "</head><body>",
         "<header>",
-        f'<p class="header-eyebrow">{esc(data["season"])} Season &bull; Week {current_week} of {regular_season_weeks}</p>',
         f'<h1>&#127944; {esc(league_name)} <span>&mdash; Playoff Odds</span></h1>',
         '<p class="subtitle">Every team\'s championship odds, simulated '
         f'{n_sims:,} times from real weekly player projections and this league\'s exact scoring rules.</p>',
@@ -298,6 +294,7 @@ def build_html(data: dict) -> str:
         '<th onclick="sortTourn(2)" data-col="2">Make Playoffs</th>',
         '<th onclick="sortTourn(3)" data-col="3">1st-Round Bye</th>',
         '<th onclick="sortTourn(4)" data-col="4" class="sort-active">Win It All &#8595;</th>',
+        '<th onclick="sortTourn(5)" data-col="5">Last Place</th>',
         "</tr></thead><tbody>",
         "".join(body_rows),
         "</tbody></table>",

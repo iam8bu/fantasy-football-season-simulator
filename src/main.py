@@ -141,15 +141,16 @@ def main():
             "bye_pct": round(r["bye_pct"], 1),
             "final_pct": round(r["final_pct"], 1),
             "champ_pct": round(r["champ_pct"], 1),
+            "last_pct": round(r["last_pct"], 1),
         })
 
     rows.sort(key=lambda x: (-x["champ_pct"], -x["playoff_pct"], -x["avg_final_wins"]))
 
     headers = ["Team", "Record", "Proj Wk" + str(current_week), "StdDev", "Avg Final W", "Avg Pts", "Avg Seed",
-               "Playoff%", "Bye%", "Final%", "Champ%"]
+               "Playoff%", "Bye%", "Final%", "Champ%", "Last%"]
     keys = ["team", "record", "proj_next_wk", "std_next_wk", "avg_final_wins", "avg_final_pts",
-            "avg_seed", "playoff_pct", "bye_pct", "final_pct", "champ_pct"]
-    widths = [24, 8, 9, 7, 12, 9, 9, 9, 6, 7, 7]
+            "avg_seed", "playoff_pct", "bye_pct", "final_pct", "champ_pct", "last_pct"]
+    widths = [24, 8, 9, 7, 12, 9, 9, 9, 6, 7, 7, 6]
 
     def fmt_row(vals):
         return "  ".join(str(v).ljust(w) for v, w in zip(vals, widths))

@@ -45,6 +45,7 @@ def simulate_season(
     got_bye = np.zeros(n_teams)
     made_final = np.zeros(n_teams)
     champion = np.zeros(n_teams)
+    last_place = np.zeros(n_teams)
     final_wins_sum = np.zeros(n_teams)
     final_pts_sum = np.zeros(n_teams)
     seed_sum = np.zeros(n_teams)
@@ -84,6 +85,7 @@ def simulate_season(
 
         playoff_idx = order[:playoff_teams]
         made_playoffs[playoff_idx] += 1
+        last_place[order[-1]] += 1
 
         def play(a, b, week):
             m, s = playoff_means[week], playoff_stds[week]
@@ -127,6 +129,7 @@ def simulate_season(
             "bye_pct": got_bye[i] / n_sims * 100,
             "final_pct": made_final[i] / n_sims * 100,
             "champ_pct": champion[i] / n_sims * 100,
+            "last_pct": last_place[i] / n_sims * 100,
             "avg_final_wins": final_wins_sum[i] / n_sims,
             "avg_final_pts": final_pts_sum[i] / n_sims,
             "avg_seed": seed_sum[i] / n_sims,
