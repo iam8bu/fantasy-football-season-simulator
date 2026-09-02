@@ -54,6 +54,19 @@ SLOT_POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
 RATIO_SHRINKAGE_N0 = 63.0
 RATIO_CLAMP = (0.75, 1.30)     # rarely binds under the reshaped weight above -- kept as a safety backstop
 
+# Separate shrinkage for STD blending -- this used to just reuse the ratio weight
+# above, which was never validated for this purpose. Tested the same way (regress
+# future residual std on known residual std, relative to the roster-composition
+# baseline): the signal here is actually STRONGER than the ratio's, especially
+# past week ~8 (weight ~0.32 at week 8, ~0.50 at week 12, vs the ratio's ~0.11-0.16
+# at the same weeks) -- a team's volatility LEVEL (built on boom/bust players or
+# not) is a more persistent, structural trait than its directional luck, which
+# tends to be more transient. Weeks 2-4 showed a fragile, slightly negative
+# relationship -- too little data for a variance estimate to mean anything, not a
+# real effect -- so the n0 fit below used only weeks 5-12, inverse-variance-
+# weighted to trust the tighter (lower standard-error) estimates more.
+STD_SHRINKAGE_N0 = 26.7
+
 
 def best_lineup_points(
     player_ids: list, points_by_pid: dict, position_by_pid: dict, slot_requirements: dict,
@@ -174,22 +187,20 @@ def team_week_lineup(
 
 def calibrate_team_ratio(team, retro_projection_by_week: dict):
     """Compare a team's actual scores so far to this engine's own retroactive
-    projection for those same weeks. Returns (ratio, weight, own_std):
+    projection for those same weeks. Returns (ratio, std_weight, own_std):
 
     - ratio: scales future-week base projections -- a team over/under-performing
       its own matchup-specific projections gets adjusted, not just blended
-      against a flat preseason average.
-    - weight: how much to trust this team's OWN numbers vs. a fallback, based on
-      sample size (see RATIO_SHRINKAGE_N0 -- this is NOT "full trust eventually,"
-      it caps well below 1.0 because the evidence shows most of the observed
-      swing at realistic sample sizes is noise, not a persistent team effect).
+      against a flat preseason average. Uses RATIO_SHRINKAGE_N0 -- this is NOT
+      "full trust eventually," it caps well below 1.0 because the evidence shows
+      most of the observed swing at realistic sample sizes is noise, not a
+      persistent team effect.
+    - std_weight: how much to trust this team's OWN residual std vs. a
+      roster-composition fallback, based on sample size (STD_SHRINKAGE_N0 --
+      backtested SEPARATELY from the ratio's weight, and found to trust real
+      data roughly twice as fast; see the constant's comment for why).
     - own_std: this team's own residual std (actual - retroactive projection), or
       None if there's not enough data yet (< 2 played weeks).
-
-    NOTE: this same `weight` is also currently reused by main.py to blend std dev
-    (own residual std vs. roster-composition std). That reuse hasn't been
-    separately validated -- the evidence behind RATIO_SHRINKAGE_N0 is specifically
-    about the MEAN/ratio side. Treat that as an open question, not a settled one.
 
     The caller (main.py) blends own_std with a per-week, roster-composition-based
     std from historical.py -- std is NOT resolved here, since the right fallback
@@ -208,10 +219,11 @@ def calibrate_team_ratio(team, retro_projection_by_week: dict):
     total_proj = sum(proj)
     raw_ratio = total_actual / total_proj if total_proj > 0 else 1.0
 
-    weight = n / (n + RATIO_SHRINKAGE_N0)
-    ratio = 1.0 + weight * (raw_ratio - 1.0)
+    ratio_weight = n / (n + RATIO_SHRINKAGE_N0)
+    ratio = 1.0 + ratio_weight * (raw_ratio - 1.0)
     ratio = max(RATIO_CLAMP[0], min(RATIO_CLAMP[1], ratio))
 
+    std_weight = n / (n + STD_SHRINKAGE_N0)
     own_std = None
     if n >= 2:
         residuals = [a - p for a, p in zip(actual, proj)]
@@ -219,4 +231,4 @@ def calibrate_team_ratio(team, retro_projection_by_week: dict):
         var = sum((r - mean_resid) ** 2 for r in residuals) / (n - 1)
         own_std = math.sqrt(var) if var > 0 else None
 
-    return ratio, weight, own_std
+    return ratio, std_weight, own_std

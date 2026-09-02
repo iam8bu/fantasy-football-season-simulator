@@ -93,7 +93,7 @@ def main():
             w: strength.team_week_projection(team.players, week_points[w], position_lookup, slot_req)
             for w in played_weeks
         }
-        ratio, weight, own_std = strength.calibrate_team_ratio(team, retro_by_week)
+        ratio, std_weight, own_std = strength.calibrate_team_ratio(team, retro_by_week)
 
         means, stds = {}, {}
         for w in remaining_weeks + playoff_weeks:
@@ -107,7 +107,7 @@ def main():
             # generic number -- a boom/bust roster gets a wider band than a steady one.
             roster_std = historical.lineup_std_from_picks(picks, std_model, players_db, season)
             if own_std is not None:
-                stds[w] = weight * own_std + (1 - weight) * roster_std
+                stds[w] = std_weight * own_std + (1 - std_weight) * roster_std
             else:
                 stds[w] = roster_std
             stds[w] = max(stds[w], 8.0)

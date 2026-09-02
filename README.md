@@ -31,8 +31,10 @@ League: **David's Yard Restoration PAC** (Sleeper league `1392633709420646400`, 
    future ratio, and heavy shrinkage is warranted even with a full season of data. The weight
    uses `n / (n + 63)`, fit directly to the measured relationship — at 6 played weeks that's a
    weight of ~0.09, not 1.0. Weekly volatility (std dev) is likewise estimated from the
-   residuals between actual scores and this week-specific baseline, falling back to an
-   empirically-derived default (see next) until there's enough data.
+   residuals between actual scores and this week-specific baseline, blended in with its OWN
+   separately-fit shrinkage weight (`n / (n + 27)` — trusts real data roughly twice as fast
+   as the ratio does, backtested independently, see the EDA section below), falling back to
+   an empirically-derived default (see next) until there's enough data.
 6. **Weekly volatility (floor/ceiling) grounded in real history AND real roster
    composition, not a guess** — `src/historical.py` pulls the last 3 completed seasons of
    *actual* results (same undocumented Sleeper endpoint family, same scoring function) and
@@ -145,6 +147,16 @@ results, not just asserts them. Findings from the run that shaped the current co
   evidence-backed; its original shrinkage schedule (full trust by week 6) was not, and has
   been replaced with `n/(n+63)`, fit directly to the measured slopes — see
   `strength.RATIO_SHRINKAGE_N0`.
+- **Does the SAME shrinkage schedule also fit std-dev blending?** No — checked separately
+  (the ratio backtest can't answer this; a team's own residual std is a different quantity
+  than its ratio) and the two behave differently enough to need their own constant. The
+  std-side signal is actually *stronger*: weeks 2-4 show a fragile, near-zero-to-negative
+  relationship (too little data for a variance estimate to mean anything), but from week 5
+  on it's real and grows faster than the ratio's — 0.32 at week 8, 0.50 at week 12, roughly
+  double the ratio's weight at the same weeks. Makes sense: a roster's volatility *level*
+  (built on boom/bust players or not) is a structural property that persists, while its
+  directional luck is more transient. Fit separately as `n/(n+27)` — see
+  `strength.STD_SHRINKAGE_N0`.
 - **Scoring engine sanity**: only 1 of 61 nonzero scoring rules never fired in-sample
   (`fgmiss_0_19` — legitimately rare), and custom league-scoring differs from Sleeper's
   generic half-PPR by +0.83 on average, confirming the custom-scoring step does real work.
@@ -200,10 +212,6 @@ Output: a results table printed to console, and a CSV at `output/season_sim_<lea
   mapping table to rescoring against this league's rules — real effort with an uncertain
   payoff, so shelved. FantasyPros' API is real and well-documented but requires a paid HOF
   subscription, ~$108/year, for anything beyond sample data.)
-- The `weight` from `calibrate_team_ratio` (mean-side shrinkage) is also reused by main.py
-  to blend std dev (own residual std vs. roster-composition std). Only the mean side has been
-  backtested — reusing the same schedule for std is an unvalidated assumption, not a
-  deliberate finding.
 - The empirical volatility model pools the last 3 seasons per player, but still can't
   reflect scoring-rule changes this season that didn't exist historically, and averages a
   player's own year-to-year level shifts away (each season's residuals are measured
