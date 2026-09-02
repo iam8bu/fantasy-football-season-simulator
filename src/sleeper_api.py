@@ -82,3 +82,15 @@ def get_research(season: str, week: int):
     """Ownership/start-rate research data. Note: not under /v1/ in Sleeper's API."""
     fn = lambda: _get(f"https://api.sleeper.app/players/nfl/research/regular/{season}/{week}")
     return _cached(DATA_DIR / f"research_{season}_wk{week}.json", fn, max_age_seconds=24 * 3600)
+
+
+def get_projections(season: str, week: int):
+    """Real per-player weekly projections (stat-line level, Rotowire via Sleeper).
+
+    Undocumented endpoint -- not under /v1/. Returns a list of entries, one per
+    player, each with a raw projected 'stats' dict (yards, TDs, FG buckets, etc.)
+    that can be scored against a league's own scoring_settings. Refreshed
+    frequently upstream (injury news, etc.), so cache is short-lived.
+    """
+    fn = lambda: _get(f"https://api.sleeper.app/projections/nfl/{season}/{week}?season_type=regular")
+    return _cached(DATA_DIR / f"projections_{season}_wk{week}.json", fn, max_age_seconds=6 * 3600)

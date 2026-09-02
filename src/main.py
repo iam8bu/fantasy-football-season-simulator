@@ -35,44 +35,65 @@ def main():
     print(f"Fetching league data for {args.league_id} ...")
     league, teams = league_mod.load_league(args.league_id, fresh=True)
     nfl_state = api.get_nfl_state()
+    season = league["season"]
 
     regular_season_weeks = league["settings"]["playoff_week_start"] - 1
     playoff_teams = league["settings"]["playoff_teams"]
-    current_week = nfl_state["week"] if nfl_state.get("season") == league["season"] else 1
-    # If season hasn't started (week 1, no scores posted), treat as fully preseason.
+    current_week = nfl_state["week"] if nfl_state.get("season") == season else 1
     current_week = max(current_week, 1)
 
     print(f"Regular season: weeks 1-{regular_season_weeks} | Current week: {current_week} | Playoff teams: {playoff_teams}")
 
     league_mod.load_schedule_and_results(args.league_id, teams, regular_season_weeks, current_week)
 
-    print("Fetching player pool + ownership data for preseason projections ...")
-    players_db = api.get_all_players()
-    research = api.get_research(league["season"], 1)
-    player_values = strength.build_player_values(players_db, research)
-
     slot_req = slot_requirements_from_roster_positions(league["roster_positions"])
     print(f"Starting lineup slots: {slot_req}")
 
-    team_dist = {}
+    players_db = api.get_all_players()
+    position_lookup = strength.build_position_lookup(players_db)
+    scoring_settings = league["scoring_settings"]
+
+    played_weeks = list(range(1, current_week))
+    remaining_weeks = list(range(current_week, regular_season_weeks + 1))
+    playoff_rounds = simulate.playoff_round_count(playoff_teams)
+    playoff_weeks = [regular_season_weeks + r for r in range(1, playoff_rounds + 1)]
+
+    weeks_needed = sorted(set(played_weeks + remaining_weeks + playoff_weeks))
+    print(f"Pulling real per-player projections for weeks {weeks_needed} (this may take a moment) ...")
+    week_points = strength.project_all_weeks(season, weeks_needed, scoring_settings)
+
+    team_week_means = {}
+    team_std = {}
     for rid, team in teams.items():
-        preseason_mean = strength.team_preseason_mean(team.players, player_values, slot_req)
-        mean, std = strength.blended_mean_std(preseason_mean, team.weekly_scores)
-        team_dist[rid] = (mean, std)
+        retro_by_week = {
+            w: strength.team_week_projection(team.players, week_points[w], position_lookup, slot_req)
+            for w in played_weeks
+        }
+        ratio, std = strength.calibrate_team(team, retro_by_week)
+        if std is None:
+            std = strength.LEAGUE_FALLBACK_STD
+        team_std[rid] = std
+
+        means = {}
+        for w in remaining_weeks + playoff_weeks:
+            base = strength.team_week_projection(team.players, week_points[w], position_lookup, slot_req)
+            means[w] = base * ratio
+        team_week_means[rid] = means
 
     print(f"Running {args.sims} season simulations ...")
     results = simulate.simulate_season(
-        teams, regular_season_weeks, current_week, playoff_teams, team_dist, n_sims=args.sims,
+        teams, regular_season_weeks, current_week, playoff_teams,
+        team_week_means, team_std, n_sims=args.sims,
     )
 
     rows = []
     for rid, team in teams.items():
         r = results[rid]
-        mean, std = team_dist[rid]
+        next_week_mean = team_week_means[rid].get(current_week, team_week_means[rid][remaining_weeks[0]] if remaining_weeks else 0)
         rows.append({
             "team": team.team_name,
             "record": f"{team.wins}-{team.losses}" + (f"-{team.ties}" if team.ties else ""),
-            "proj_wk_pts": round(mean, 1),
+            "proj_next_wk": round(next_week_mean, 1),
             "avg_final_wins": round(r["avg_final_wins"], 1),
             "avg_final_pts": round(r["avg_final_pts"], 1),
             "avg_seed": round(r["avg_seed"], 1),
@@ -84,12 +105,11 @@ def main():
 
     rows.sort(key=lambda x: (-x["champ_pct"], -x["playoff_pct"], -x["avg_final_wins"]))
 
-    # ---- Print table ----
-    headers = ["Team", "Record", "Proj/Wk", "Avg Final W", "Avg Pts", "Avg Seed",
+    headers = ["Team", "Record", "Proj Wk" + str(current_week), "Avg Final W", "Avg Pts", "Avg Seed",
                "Playoff%", "Bye%", "Final%", "Champ%"]
-    keys = ["team", "record", "proj_wk_pts", "avg_final_wins", "avg_final_pts",
+    keys = ["team", "record", "proj_next_wk", "avg_final_wins", "avg_final_pts",
             "avg_seed", "playoff_pct", "bye_pct", "final_pct", "champ_pct"]
-    widths = [24, 8, 8, 12, 9, 9, 9, 6, 7, 7]
+    widths = [24, 8, 9, 12, 9, 9, 9, 6, 7, 7]
 
     def fmt_row(vals):
         return "  ".join(str(v).ljust(w) for v, w in zip(vals, widths))
@@ -100,7 +120,6 @@ def main():
     for row in rows:
         print(fmt_row([row[k] for k in keys]))
 
-    # ---- Save CSV ----
     out_path = OUT_DIR / f"season_sim_{args.league_id}.csv"
     with open(out_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=keys)
