@@ -137,8 +137,9 @@ def build_html(data: dict) -> str:
     body_rows = []
     for i, t in enumerate(rows_sorted, start=1):
         name_cell = f'{esc(t["team"])} <span class="record-inline">({esc(t["record"])})</span>'
+        cutoff_attr = ' data-cutoff="1"' if i == playoff_teams else ""
         body_rows.append(
-            "<tr>"
+            f"<tr{cutoff_attr}>"
             f"<td>{i}</td>"
             f"<td>{name_cell}</td>"
             f'<td>{t["avg_final_wins"]:.1f}</td>'
@@ -174,7 +175,7 @@ def build_html(data: dict) -> str:
         '<th onclick="sortTourn(1)" data-col="1">Team</th>',
         '<th onclick="sortTourn(2)" data-col="2" class="sort-active">Proj. Wins &#8595;</th>',
         '<th onclick="sortTourn(3)" data-col="3">Make Playoffs</th>',
-        '<th onclick="sortTourn(4)" data-col="4">1st-Round Bye</th>',
+        '<th onclick="sortTourn(4)" data-col="4">1st Round Bye</th>',
         '<th onclick="sortTourn(5)" data-col="5">Champion</th>',
         '<th onclick="sortTourn(6)" data-col="6">Last Place</th>',
         "</tr></thead><tbody>",
@@ -188,6 +189,7 @@ def build_html(data: dict) -> str:
         'var tbl=document.getElementById("tourn-table");',
         'var tbody=tbl.querySelector("tbody");',
         'var rows=Array.from(tbody.querySelectorAll("tr:not(.playoff-line)"));',
+        'var divider=tbody.querySelector(".playoff-line");',
         "if(col===_tCol)_tDir*=-1;else{_tDir=-1;_tCol=col;}",
         "rows.sort(function(a,b){",
         'var av=a.cells[col].innerText.replace("%","");',
@@ -198,6 +200,11 @@ def build_html(data: dict) -> str:
         "});",
         'tbody.querySelectorAll("tr").forEach(function(r){tbody.removeChild(r);});',
         "rows.forEach(function(r,i){r.cells[0].innerText=i+1;tbody.appendChild(r);});",
+        # The playoff line tracks the actual 6th-best team (by projected wins), not a
+        # fixed row position -- move the same divider node to sit right after that
+        # team's row wherever it lands in the current sort.
+        'var cutoffRow=tbody.querySelector("tr[data-cutoff]");',
+        "if(divider&&cutoffRow)cutoffRow.insertAdjacentElement(\"afterend\",divider);",
         'tbl.querySelectorAll("th").forEach(function(th,i){',
         'th.className=i===_tCol?"sort-active":"";',
         'th.innerHTML=th.innerHTML.replace(/[ \\u2191\\u2193]/g,"")+(i===_tCol?(_tDir===-1?" \\u2193":" \\u2191"):"");',
