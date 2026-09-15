@@ -92,7 +92,8 @@ header h1 span { color: var(--green); }
 #snapshot-select:hover { border-color: var(--green); }
 
 /* -- Standings table -- */
-.tourn-wrap { max-width: 900px; margin: 0 auto; padding: 18px 14px 40px; }
+.tourn-wrap { max-width: 900px; margin: 0 auto; padding: 18px 14px 8px; }
+.detail-hint { max-width: 900px; margin: 0 auto; padding: 0 14px 32px; text-align: center; color: var(--muted); font-size: 12px; }
 .tourn-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
 .tourn-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 620px; }
 .tourn-table th {
@@ -110,6 +111,7 @@ header h1 span { color: var(--green); }
 .tourn-table tr:last-child td { border-bottom: none; }
 .tourn-table tbody tr:hover td { background: var(--surface2) !important; }
 .record-inline { color: var(--muted); font-weight: 400; font-size: 12px; }
+.tourn-table tbody tr.has-detail { cursor: pointer; }
 
 .playoff-line td { padding: 0; border-bottom: none; }
 .playoff-line .line-inner {
@@ -122,9 +124,53 @@ header h1 span { color: var(--green); }
   white-space: nowrap;
 }
 
+/* -- Roster detail modal -- */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 6vh 14px; overflow-y: auto; z-index: 100;
+}
+.modal-box {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  max-width: 820px; width: 100%; padding: 20px;
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 4px;
+}
+.modal-head h2 { font-size: 18px; font-weight: 800; }
+.modal-sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+.modal-close {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; width: 28px; height: 28px; font-size: 15px; cursor: pointer; line-height: 1;
+  flex-shrink: 0;
+}
+.modal-close:hover { border-color: var(--red); color: var(--red); }
+.roster-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.roster-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 520px; }
+.roster-table th {
+  padding: 8px 9px; text-align: right; font-weight: 500; white-space: nowrap;
+  border-bottom: 2px solid var(--border); background: var(--surface2); color: var(--muted);
+}
+.roster-table th:nth-child(1) { text-align: left; position: sticky; left: 0; background: var(--surface2); }
+.roster-table td {
+  padding: 7px 9px; text-align: right; border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums; color: var(--muted);
+}
+.roster-table td:nth-child(1) {
+  text-align: left; white-space: nowrap; color: var(--text); font-weight: 500;
+  position: sticky; left: 0; background: var(--surface);
+}
+.roster-table tr:last-child td { border-bottom: none; }
+.roster-table td.started { color: var(--text); font-weight: 600; }
+.roster-table td.bye { color: var(--border); }
+.roster-table td.ros-total { color: var(--green); font-weight: 700; }
+.roster-pos { color: var(--muted); font-weight: 400; font-size: 11px; }
+
 /* -- Responsive -- */
 @media (max-width: 640px) {
   header { padding: 28px 18px 22px; }
+  .modal-box { padding: 14px; }
 }
 """
 
@@ -200,17 +246,22 @@ function renderSnapshot(key){
     tr.appendChild(cell(String(i+1)));
     tr.appendChild(nameTd);
     tr.appendChild(cell(t.avg_final_wins.toFixed(1)));
+    tr.appendChild(cell(typeof t.proj_ros_pts==='number'?t.proj_ros_pts.toFixed(1):'-'));
     tr.appendChild(cell(t.playoff_pct.toFixed(1)+'%',heatBg(t.playoff_pct,maxPlayoff,'38,160,106')));
     tr.appendChild(cell(t.bye_pct.toFixed(1)+'%',heatBg(t.bye_pct,maxBye,'38,160,106')));
     tr.appendChild(cell(t.champ_pct.toFixed(1)+'%',heatBg(t.champ_pct,maxChamp,'184,122,26')));
     tr.appendChild(cell(t.last_pct.toFixed(1)+'%',heatBg(t.last_pct,maxLast,'248,81,73')));
+    if(t.roster_id!=null && ROSTER_DETAIL.teams[String(t.roster_id)]){
+      tr.className='has-detail';
+      tr.addEventListener('click',function(){openRosterModal(String(t.roster_id));});
+    }
     tbody.appendChild(tr);
   });
 
   var divider=document.createElement('tr');
   divider.className='playoff-line';
   var td=document.createElement('td');
-  td.colSpan=7;
+  td.colSpan=8;
   var inner=document.createElement('div');
   inner.className='line-inner';
   var rule1=document.createElement('div'); rule1.className='rule';
@@ -258,10 +309,52 @@ function sortTourn(col){
     th.innerHTML=th.innerHTML.replace(/[ \\u2191\\u2193]/g,"")+(i===_tCol?(_tDir===-1?" \\u2193":" \\u2191"):"");
   });
 }
+
+function fmtCell(val,started){
+  if(val==null)return '<td class="bye">bye</td>';
+  return '<td'+(started?' class="started"':'')+'>'+val.toFixed(1)+'</td>';
+}
+
+function openRosterModal(rid){
+  var detail=ROSTER_DETAIL.teams[rid];
+  if(!detail)return;
+  var weeks=ROSTER_DETAIL.weeks;
+  var html='<div class="modal-backdrop" id="roster-modal" onclick="if(event.target===this)closeRosterModal()">';
+  html+='<div class="modal-box"><div class="modal-head"><h2>'+detail.team+'</h2>';
+  html+='<button class="modal-close" onclick="closeRosterModal()">&times;</button></div>';
+  html+='<p class="modal-sub">Rest-of-season projections, weeks '+weeks[0]+'-'+weeks[weeks.length-1]+
+        ' &mdash; bold = started that week\\'s optimal lineup.</p>';
+  html+='<div class="roster-scroll"><table class="roster-table"><thead><tr><th>Player</th>';
+  weeks.forEach(function(w){html+='<th>Wk'+w+'</th>';});
+  html+='<th>Projected Points</th></tr></thead><tbody>';
+  detail.players.forEach(function(p){
+    html+='<tr><td>'+p.name+' <span class="roster-pos">'+p.pos+(p.nfl_team?(' '+p.nfl_team):'')+'</span></td>';
+    weeks.forEach(function(w){
+      var v=p.weekly[String(w)];
+      html+=fmtCell(v,p.started_weeks.indexOf(w)!==-1);
+    });
+    html+='<td class="ros-total">'+p.ros_total.toFixed(1)+'</td></tr>';
+  });
+  html+='</tbody></table></div></div></div>';
+  var host=document.createElement('div');
+  host.innerHTML=html;
+  document.body.appendChild(host.firstChild);
+  document.addEventListener('keydown',escCloseRosterModal);
+}
+
+function closeRosterModal(){
+  var m=document.getElementById('roster-modal');
+  if(m)m.parentNode.removeChild(m);
+  document.removeEventListener('keydown',escCloseRosterModal);
+}
+
+function escCloseRosterModal(e){
+  if(e.key==='Escape')closeRosterModal();
+}
 """
 
 
-def build_html(data: dict, snapshots: dict, latest_key: str) -> str:
+def build_html(data: dict, snapshots: dict, latest_key: str, roster_detail: dict) -> str:
     league_name = data["league_name"]
     n_sims = data["n_sims"]
 
@@ -281,6 +374,7 @@ def build_html(data: dict, snapshots: dict, latest_key: str) -> str:
     # Guard against a team name containing "</script>" and breaking out of the
     # embedded JSON block -- extremely unlikely for real names, but free to prevent.
     snapshots_json = json.dumps(snapshots).replace("</", "<\\/")
+    roster_detail_json = json.dumps(roster_detail).replace("</", "<\\/")
 
     parts = [
         "<!doctype html><html lang=\"en\"><head>",
@@ -304,16 +398,19 @@ def build_html(data: dict, snapshots: dict, latest_key: str) -> str:
         '<th onclick="sortTourn(0)" data-col="0">#</th>',
         '<th onclick="sortTourn(1)" data-col="1">Team</th>',
         '<th onclick="sortTourn(2)" data-col="2" class="sort-active">Proj. Wins &#8595;</th>',
-        '<th onclick="sortTourn(3)" data-col="3">Make Playoffs</th>',
-        '<th onclick="sortTourn(4)" data-col="4">1st Round Bye</th>',
-        '<th onclick="sortTourn(5)" data-col="5">Champion</th>',
-        '<th onclick="sortTourn(6)" data-col="6">Last Place</th>',
+        '<th onclick="sortTourn(3)" data-col="3">Projected Points</th>',
+        '<th onclick="sortTourn(4)" data-col="4">Make Playoffs</th>',
+        '<th onclick="sortTourn(5)" data-col="5">1st Round Bye</th>',
+        '<th onclick="sortTourn(6)" data-col="6">Champion</th>',
+        '<th onclick="sortTourn(7)" data-col="7">Last Place</th>',
         '</tr></thead><tbody id="standings-body"></tbody></table>',
         "</div>",
         "</div>",
+        '<p class="detail-hint">Click a team to see its rest-of-season player projections.</p>',
         "<script>",
         f"var SNAPSHOTS={snapshots_json};",
-        f'var PLAYOFF_TEAMS={data["playoff_teams"]},LAST_PLACE_COL=6;',
+        f"var ROSTER_DETAIL={roster_detail_json};",
+        f'var PLAYOFF_TEAMS={data["playoff_teams"]},LAST_PLACE_COL=7;',
         "var _tDir=-1,_tCol=2;",
         TABLE_JS,
         f"renderSnapshot('{latest_key}');",
@@ -334,10 +431,16 @@ def main():
     with open(json_path) as f:
         data = json.load(f)
 
+    roster_path = DATA_DIR / f"roster_detail_{args.league_id}.json"
+    roster_detail = {"weeks": [], "teams": {}}
+    if roster_path.exists():
+        with open(roster_path) as f:
+            roster_detail = json.load(f)
+
     latest_key = archive_snapshot(data)
     snapshots = load_all_snapshots()
 
-    html = build_html(data, snapshots, latest_key)
+    html = build_html(data, snapshots, latest_key, roster_detail)
     out_path = OUT_DIR / "index.html"
     with open(out_path, "w") as f:
         f.write(html)

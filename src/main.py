@@ -88,8 +88,11 @@ def main():
         for w in remaining_weeks + playoff_weeks
     }
 
+    SKILL_POSITIONS = ("QB", "RB", "WR", "TE")
+
     team_week_means = {}
     team_week_std = {}
+    roster_detail = {}
     for rid, team in teams.items():
         retro_by_week = {
             w: strength.team_week_projection(team.players, week_points[w], position_lookup, slot_req)
@@ -98,12 +101,15 @@ def main():
         ratio, std_weight, own_std = strength.calibrate_team_ratio(team, retro_by_week)
 
         means, stds = {}, {}
+        started_by_week = {}
         for w in remaining_weeks + playoff_weeks:
             base, picks = strength.team_week_lineup(
                 team.players, week_points[w], position_lookup, slot_req,
                 stream_ceilings=stream_ceilings_by_week[w],
             )
             means[w] = base * ratio
+            if w in remaining_weeks:
+                started_by_week[w] = {pid for _pos, pid in picks if pid is not None}
 
             # Roster-specific std: the SPECIFIC players in this week's lineup, not a
             # generic number -- a boom/bust roster gets a wider band than a steady one.
@@ -117,6 +123,34 @@ def main():
         team_week_means[rid] = means
         team_week_std[rid] = stds
 
+        # Per-player rest-of-season detail (skill positions only), for the dashboard's
+        # click-into-a-team roster view. Individual player points are scaled by the same
+        # team calibration ratio as the team total, so a player's weekly cell plus the
+        # rest of that week's starters sums to the team's projected week total.
+        players_detail = []
+        for pid in team.players:
+            pos = position_lookup.get(pid)
+            if pos not in SKILL_POSITIONS:
+                continue
+            p = players_db.get(pid, {})
+            name = p.get("full_name") or f"{p.get('first_name', '')} {p.get('last_name', '')}".strip() or pid
+            weekly = {}
+            for w in remaining_weeks:
+                pts = week_points[w].get(pid)
+                weekly[w] = round(pts * ratio, 1) if pts is not None else None
+            ros_total = round(sum(v for v in weekly.values() if v is not None), 1)
+            players_detail.append({
+                "name": name,
+                "pos": pos,
+                "nfl_team": p.get("team") or "",
+                "weekly": weekly,
+                "ros_total": ros_total,
+                "started_weeks": [w for w in remaining_weeks if pid in started_by_week.get(w, ())],
+            })
+        pos_order = {"QB": 0, "RB": 1, "WR": 2, "TE": 3}
+        players_detail.sort(key=lambda r: (pos_order.get(r["pos"], 99), -r["ros_total"]))
+        roster_detail[rid] = {"team": team.team_name, "players": players_detail}
+
     print(f"Running {args.sims} season simulations ...")
     results = simulate.simulate_season(
         teams, regular_season_weeks, current_week, playoff_teams,
@@ -129,11 +163,14 @@ def main():
         cw = current_week if current_week in team_week_means[rid] else remaining_weeks[0]
         next_week_mean = team_week_means[rid].get(cw, 0)
         next_week_std = team_week_std[rid].get(cw, 0)
+        proj_ros_pts = sum(team_week_means[rid][w] for w in remaining_weeks)
         rows.append({
+            "roster_id": rid,
             "team": team.team_name,
             "record": f"{team.wins}-{team.losses}" + (f"-{team.ties}" if team.ties else ""),
             "proj_next_wk": round(next_week_mean, 1),
             "std_next_wk": round(next_week_std, 1),
+            "proj_ros_pts": round(proj_ros_pts, 1),
             "avg_final_wins": round(r["avg_final_wins"], 1),
             "avg_final_pts": round(r["avg_final_pts"], 1),
             "avg_seed": round(r["avg_seed"], 1),
@@ -146,11 +183,11 @@ def main():
 
     rows.sort(key=lambda x: (-x["champ_pct"], -x["playoff_pct"], -x["avg_final_wins"]))
 
-    headers = ["Team", "Record", "Proj Wk" + str(current_week), "StdDev", "Avg Final W", "Avg Pts", "Avg Seed",
-               "Playoff%", "Bye%", "Final%", "Champ%", "Last%"]
-    keys = ["team", "record", "proj_next_wk", "std_next_wk", "avg_final_wins", "avg_final_pts",
+    headers = ["Team", "Record", "Proj Wk" + str(current_week), "StdDev", "Proj ROS Pts", "Avg Final W", "Avg Pts",
+               "Avg Seed", "Playoff%", "Bye%", "Final%", "Champ%", "Last%"]
+    keys = ["team", "record", "proj_next_wk", "std_next_wk", "proj_ros_pts", "avg_final_wins", "avg_final_pts",
             "avg_seed", "playoff_pct", "bye_pct", "final_pct", "champ_pct", "last_pct"]
-    widths = [24, 8, 9, 7, 12, 9, 9, 9, 6, 7, 7, 6]
+    widths = [24, 8, 9, 7, 12, 12, 9, 9, 9, 6, 7, 7, 6]
 
     def fmt_row(vals):
         return "  ".join(str(v).ljust(w) for v, w in zip(vals, widths))
@@ -184,6 +221,16 @@ def main():
             "teams": rows,
         }, f, indent=2)
     print(f"Saved: {json_path}")
+
+    # Per-player rest-of-season detail powering the dashboard's click-into-a-team
+    # view. Keyed by roster_id (stable across weeks) rather than team name.
+    roster_path = OUT_DIR / f"roster_detail_{args.league_id}.json"
+    with open(roster_path, "w") as f:
+        json.dump({
+            "weeks": remaining_weeks,
+            "teams": {str(rid): detail for rid, detail in roster_detail.items()},
+        }, f, indent=2)
+    print(f"Saved: {roster_path}")
 
 
 if __name__ == "__main__":

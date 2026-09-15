@@ -3,10 +3,12 @@
   "label": "Week 2",
   "teams": [
     {
+      "roster_id": 14,
       "team": "Asher",
       "record": "1-0",
       "proj_next_wk": 137.8,
       "std_next_wk": 23.7,
+      "proj_ros_pts": 1584.1,
       "avg_final_wins": 9.0,
       "avg_final_pts": 1703.6,
       "avg_seed": 2.8,
@@ -17,10 +19,12 @@
       "last_pct": 0.0
     },
     {
+      "roster_id": 1,
       "team": "Isaac",
       "record": "1-0",
       "proj_next_wk": 131.6,
       "std_next_wk": 21.7,
+      "proj_ros_pts": 1516.4,
       "avg_final_wins": 8.1,
       "avg_final_pts": 1670.1,
       "avg_seed": 4.1,
@@ -31,10 +35,12 @@
       "last_pct": 0.3
     },
     {
+      "roster_id": 2,
       "team": "Pedro",
       "record": "1-0",
       "proj_next_wk": 127.3,
       "std_next_wk": 21.6,
+      "proj_ros_pts": 1475.5,
       "avg_final_wins": 7.3,
       "avg_final_pts": 1602.5,
       "avg_seed": 5.7,
@@ -45,10 +51,12 @@
       "last_pct": 1.0
     },
     {
+      "roster_id": 10,
       "team": "Brendan",
       "record": "1-0",
       "proj_next_wk": 120.6,
       "std_next_wk": 24.6,
+      "proj_ros_pts": 1471.8,
       "avg_final_wins": 7.3,
       "avg_final_pts": 1590.5,
       "avg_seed": 5.8,
@@ -59,10 +67,12 @@
       "last_pct": 1.2
     },
     {
+      "roster_id": 8,
       "team": "Jackson",
       "record": "0-1",
       "proj_next_wk": 120.0,
       "std_next_wk": 22.4,
+      "proj_ros_pts": 1476.9,
       "avg_final_wins": 6.7,
       "avg_final_pts": 1588.7,
       "avg_seed": 6.8,
@@ -73,10 +83,12 @@
       "last_pct": 2.3
     },
     {
+      "roster_id": 12,
       "team": "Matt",
       "record": "1-0",
       "proj_next_wk": 117.9,
       "std_next_wk": 22.9,
+      "proj_ros_pts": 1421.9,
       "avg_final_wins": 6.6,
       "avg_final_pts": 1539.5,
       "avg_seed": 7.5,
@@ -87,10 +99,12 @@
       "last_pct": 3.1
     },
     {
+      "roster_id": 3,
       "team": "Jonathan",
       "record": "1-0",
       "proj_next_wk": 118.9,
       "std_next_wk": 22.8,
+      "proj_ros_pts": 1409.0,
       "avg_final_wins": 6.6,
       "avg_final_pts": 1521.9,
       "avg_seed": 7.5,
@@ -101,10 +115,12 @@
       "last_pct": 3.2
     },
     {
+      "roster_id": 5,
       "team": "David",
       "record": "0-1",
       "proj_next_wk": 123.0,
       "std_next_wk": 21.1,
+      "proj_ros_pts": 1474.7,
       "avg_final_wins": 6.4,
       "avg_final_pts": 1591.0,
       "avg_seed": 7.4,
@@ -115,10 +131,12 @@
       "last_pct": 3.1
     },
     {
+      "roster_id": 7,
       "team": "Chris",
       "record": "1-0",
       "proj_next_wk": 121.1,
       "std_next_wk": 22.1,
+      "proj_ros_pts": 1405.7,
       "avg_final_wins": 6.3,
       "avg_final_pts": 1530.6,
       "avg_seed": 8.0,
@@ -129,10 +147,12 @@
       "last_pct": 4.1
     },
     {
+      "roster_id": 9,
       "team": "Nathan",
       "record": "0-1",
       "proj_next_wk": 124.6,
       "std_next_wk": 23.8,
+      "proj_ros_pts": 1455.3,
       "avg_final_wins": 6.1,
       "avg_final_pts": 1569.9,
       "avg_seed": 8.0,
@@ -143,10 +163,12 @@
       "last_pct": 5.0
     },
     {
+      "roster_id": 4,
       "team": "Will",
       "record": "0-1",
       "proj_next_wk": 122.5,
       "std_next_wk": 22.8,
+      "proj_ros_pts": 1420.9,
       "avg_final_wins": 5.8,
       "avg_final_pts": 1539.0,
       "avg_seed": 8.8,
@@ -157,10 +179,12 @@
       "last_pct": 7.2
     },
     {
+      "roster_id": 6,
       "team": "Connor",
       "record": "0-1",
       "proj_next_wk": 116.7,
       "std_next_wk": 21.8,
+      "proj_ros_pts": 1402.9,
       "avg_final_wins": 5.4,
       "avg_final_pts": 1483.1,
       "avg_seed": 9.9,
@@ -171,10 +195,12 @@
       "last_pct": 11.9
     },
     {
+      "roster_id": 13,
       "team": "Grant",
       "record": "0-1",
       "proj_next_wk": 110.2,
       "std_next_wk": 21.5,
+      "proj_ros_pts": 1352.1,
       "avg_final_wins": 5.2,
       "avg_final_pts": 1438.5,
       "avg_seed": 10.6,
@@ -185,10 +211,12 @@
       "last_pct": 16.3
     },
     {
+      "roster_id": 11,
       "team": "Landon",
       "record": "0-1",
       "proj_next_wk": 104.1,
       "std_next_wk": 21.6,
+      "proj_ros_pts": 1286.5,
       "avg_final_wins": 4.2,
       "avg_final_pts": 1353.7,
       "avg_seed": 12.2,
