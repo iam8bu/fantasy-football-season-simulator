@@ -4,3 +4,7 @@ __pycache__/
 *.pyc
 .DS_Store
 .venv/
+
+# Personal trade/waiver search tools -- local-only, never pushed.
+src/trade_tool.py
+src/waiver_tool.py
