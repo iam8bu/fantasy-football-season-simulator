@@ -246,7 +246,7 @@ function renderSnapshot(key){
     tr.appendChild(cell(String(i+1)));
     tr.appendChild(nameTd);
     tr.appendChild(cell(t.avg_final_wins.toFixed(1)));
-    tr.appendChild(cell(typeof t.proj_ros_pts==='number'?t.proj_ros_pts.toFixed(1):'-'));
+    tr.appendChild(cell(typeof t.avg_final_pts==='number'?t.avg_final_pts.toFixed(1):'-'));
     tr.appendChild(cell(t.playoff_pct.toFixed(1)+'%',heatBg(t.playoff_pct,maxPlayoff,'38,160,106')));
     tr.appendChild(cell(t.bye_pct.toFixed(1)+'%',heatBg(t.bye_pct,maxBye,'38,160,106')));
     tr.appendChild(cell(t.champ_pct.toFixed(1)+'%',heatBg(t.champ_pct,maxChamp,'184,122,26')));
