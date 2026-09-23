@@ -179,18 +179,30 @@ def snapshot_label(current_week: int) -> str:
     return "Preseason" if current_week <= 1 else f"Week {current_week}"
 
 
-def archive_snapshot(data: dict) -> str:
-    """Writes/overwrites today's snapshot file. Returns today's date key."""
+def archive_snapshot(data: dict, reuse_latest: bool = False) -> str:
+    """Writes/overwrites today's snapshot file. Returns the date key written.
+
+    If reuse_latest, overwrites the most recently-dated existing snapshot in
+    place (keeping its original date label) instead of creating a new dated
+    entry -- for a refresh where a new dropdown entry isn't warranted (e.g.
+    no new games played since the last archive).
+    """
     SNAPSHOT_DIR.mkdir(exist_ok=True)
-    today = datetime.now().strftime("%Y-%m-%d")
+    key = None
+    if reuse_latest:
+        existing = sorted(p.stem for p in SNAPSHOT_DIR.glob("*.json"))
+        if existing:
+            key = existing[-1]
+    if key is None:
+        key = datetime.now().strftime("%Y-%m-%d")
     snap = {
-        "date": today,
+        "date": key,
         "label": snapshot_label(data["current_week"]),
         "teams": sorted(data["teams"], key=lambda t: (-t["avg_final_wins"], -t["avg_final_pts"])),
     }
-    with open(SNAPSHOT_DIR / f"{today}.json", "w") as f:
+    with open(SNAPSHOT_DIR / f"{key}.json", "w") as f:
         json.dump(snap, f, indent=2)
-    return today
+    return key
 
 
 def load_all_snapshots() -> dict:
@@ -423,6 +435,8 @@ def build_html(data: dict, snapshots: dict, latest_key: str, roster_detail: dict
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--league-id", default=DEFAULT_LEAGUE_ID)
+    ap.add_argument("--no-new-archive", action="store_true",
+                     help="Refresh the most recent snapshot in place instead of creating a new dated one.")
     args = ap.parse_args()
 
     json_path = DATA_DIR / f"season_sim_{args.league_id}.json"
@@ -437,7 +451,7 @@ def main():
         with open(roster_path) as f:
             roster_detail = json.load(f)
 
-    latest_key = archive_snapshot(data)
+    latest_key = archive_snapshot(data, reuse_latest=args.no_new_archive)
     snapshots = load_all_snapshots()
 
     html = build_html(data, snapshots, latest_key, roster_detail)

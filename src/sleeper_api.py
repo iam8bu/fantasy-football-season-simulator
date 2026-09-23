@@ -67,6 +67,14 @@ def get_draft_picks(draft_id: str):
     return _cached(DATA_DIR / f"draft_picks_{draft_id}.json", fn, max_age_seconds=None)
 
 
+def get_transactions(league_id: str, week: int, fresh=True):
+    """Trades, waiver claims, and free-agent adds/drops for one week ("leg").
+    Each entry's `waiver_budget` lists any FAAB actually spent (empty if none).
+    """
+    fn = lambda: _get(f"{BASE}/league/{league_id}/transactions/{week}")
+    return _cached(DATA_DIR / f"transactions_{league_id}_wk{week}.json", fn, max_age_seconds=0 if fresh else None)
+
+
 def get_nfl_state():
     fn = lambda: _get(f"{BASE}/state/nfl")
     return _cached(DATA_DIR / "nfl_state.json", fn, max_age_seconds=0)
