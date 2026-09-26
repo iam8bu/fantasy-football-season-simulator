@@ -216,11 +216,6 @@ def load_all_snapshots() -> dict:
     return snaps
 
 
-def display_date(date_key: str) -> str:
-    dt = datetime.strptime(date_key, "%Y-%m-%d")
-    return f"{dt.month}/{dt.day}"
-
-
 # JS ports of the Python row-rendering/heatmap/sort-divider logic used before --
 # now client-side so the dropdown can redraw the table for any archived date
 # without a page reload (index.html has no backend to ask for other snapshots).
@@ -380,7 +375,7 @@ def build_html(data: dict, snapshots: dict, latest_key: str, roster_detail: dict
         snap = snapshots[key]
         selected = " selected" if key == latest_key else ""
         options.append(
-            f'<option value="{esc(key)}"{selected}>{display_date(key)} &mdash; {esc(snap["label"])}</option>'
+            f'<option value="{esc(key)}"{selected}>{esc(snap["label"])}</option>'
         )
 
     # Guard against a team name containing "</script>" and breaking out of the
