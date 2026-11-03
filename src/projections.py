@@ -18,9 +18,30 @@ be started, so they simply won't be picked for the optimal lineup that week.
 import sleeper_api as api
 
 
+def _split_long_fg_buckets(stats: dict, scoring_settings: dict) -> dict:
+    """Projections lump every 50+ yd kick into fgm_50p/fgmiss_50p, while leagues
+    commonly score only the split 50_59 / 60p buckets (and give 50p zero) -- so a
+    projected long FG silently scored nothing. Actual stat lines carry both the
+    lumped and split keys, so only fill the split bucket when it's absent; 60+
+    attempts are rare enough that treating them all as 50-59 is the right estimate.
+    """
+    out = stats
+    for made_or_miss in ("fgm", "fgmiss"):
+        lumped = f"{made_or_miss}_50p"
+        split = (f"{made_or_miss}_50_59", f"{made_or_miss}_60p")
+        if scoring_settings.get(lumped):
+            continue  # league scores the lumped bucket directly -- nothing missing
+        if lumped in stats and not any(k in stats for k in split):
+            if out is stats:
+                out = dict(stats)
+            out[split[0]] = stats[lumped]
+    return out
+
+
 def score_stats(stats: dict, scoring_settings: dict) -> float:
     if not stats:
         return 0.0
+    stats = _split_long_fg_buckets(stats, scoring_settings)
     return sum(stats[k] * v for k, v in scoring_settings.items() if k in stats)
 
 
